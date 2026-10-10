@@ -197,10 +197,10 @@ __wrap_fputs(const char *s, FILE *f)
 }
 
 // ---- crash breadcrumbs ---------------------------------------------------
-// The game thread leaves the last 64 steps here (no I/O, a few stores each).
+// The game thread leaves the last 256 steps here (no I/O, a few stores each).
 // When it dies, the main thread is still alive and dumps them to the log.
 
-#define CRUMB_COUNT 64
+#define CRUMB_COUNT 256
 
 struct Crumb {
 	const char *tag;
@@ -209,6 +209,8 @@ struct Crumb {
 	unsigned where;		// return address: the code that left the crumb
 };
 static Crumb crumbs[CRUMB_COUNT];
+// set by the game (Ped.cpp): prints the entity being processed at the crash
+void (*PS3_crashDumpHook)(void);
 static volatile unsigned crumbHead;
 unsigned PS3_crumbFrame;
 
@@ -264,11 +266,11 @@ PS3_PoolFull(const char *name, int size)
 // ---- function trace --------------------------------------------------------
 // The objects built with -finstrument-functions (FTRACE_DIRS in ps3/Makefile)
 // call these on every function entry and exit (inlined ones too). The ring
-// keeps the last FTRACE_COUNT events: the function (its .opd descriptor),
+// keeps the last FTRACE_COUNT (16384) events: the function (its .opd descriptor),
 // bit 0 set on exit. ps3/tools/crashaddr.py turns the [ftrace]
 // lines of a log into the call tree at the moment of the crash.
 
-#define FTRACE_COUNT 4096	// power of 2
+#define FTRACE_COUNT 16384	// power of 2
 static unsigned ftrace[FTRACE_COUNT];
 static unsigned ftraceHead;
 
@@ -323,6 +325,8 @@ PS3_DumpCrumbs(void)
 	}
 	PS3_Logf("[crash] last script command: script \"%s\" opcode 0x%04x at ip %u (%u commands run)",
 	         name, scriptCommand, scriptIp, scriptCount);
+	if (PS3_crashDumpHook)
+		PS3_crashDumpHook();
 }
 
 // ---- PPU exception handler -------------------------------------------------

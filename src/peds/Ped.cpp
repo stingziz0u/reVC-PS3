@@ -1712,40 +1712,188 @@ CPed::ProcessBuoyancy(void)
 
 #ifdef __PS3__
 void PS3_DescribeEntityPtr(const void *p, char *buf, int size);	// PedIK.cpp
+bool PS3_CheckPedSkeleton(CPed *ped);	// PedIK.cpp
 bool PS3_EntityLive(const void *p);
 
 // The Riot crash came through a ped pointer that wasn't a ped any more. On PC
 // a stale pointer reads old data and the game goes on; here it can kill the
-// game thread. Check this ped's entity pointers once per frame: one that
-// doesn't point to a live entity is logged ([ped] stale ...) and cleared.
+// game thread. Check this ped's pointers (at the start of ProcessControl and
+// before the parts that follow them): one that doesn't point to a live entity
+// of the right kind is logged ([ped] stale ...) and cleared.
+static bool
+PS3_IsLivePed(const void *p)
+{
+	int idx;
+	bool isFree;
+	return CPools::GetPedPool()->PS3_Owns(p, &idx, &isFree) && !isFree;
+}
+
+static bool
+PS3_IsLiveVehicle(const void *p)
+{
+	int idx;
+	bool isFree;
+	return CPools::GetVehiclePool()->PS3_Owns(p, &idx, &isFree) && !isFree;
+}
+
 static void
-PS3_CheckPedPointers(CPed *ped)
+PS3_LogStale(CPed *ped, const char *name, const void *p, int where)
 {
 	static int logged;
-#define PS3_CHECK_PTR(m) \
-	if (ped->m && !PS3_EntityLive(ped->m)) { \
-		if (logged < 24) { \
-			char desc[48]; \
-			logged++; \
-			PS3_DescribeEntityPtr(ped->m, desc, sizeof(desc)); \
-			PS3_Logf("[ped] stale " #m " %p (%s) in ped %p model %d state %d objective %d: cleared", \
-			         (void*)ped->m, desc, ped, ped->GetModelIndex(), ped->m_nPedState, ped->m_objective); \
-		} \
+	if (logged < 32) {
+		char desc[48];
+		logged++;
+		PS3_DescribeEntityPtr(p, desc, sizeof(desc));
+		PS3_Logf("[ped] stale %s %p (%s) in ped %p model %d state %d objective %d (check %d): cleared",
+		         name, p, desc, ped, ped->GetModelIndex(), ped->m_nPedState, ped->m_objective, where);
+	}
+	PS3_CRUMB("ped: stale pointer cleared, check", where);
+}
+
+void
+PS3_CheckPedPointers(CPed *ped, int where)
+{
+#define PS3_CHECK_PTR(m, live) \
+	if (ped->m && !live(ped->m)) { \
+		PS3_LogStale(ped, #m, ped->m, where); \
 		ped->m = nil; \
 	}
-	PS3_CHECK_PTR(m_pLookTarget)
-	PS3_CHECK_PTR(m_pedInObjective)
-	PS3_CHECK_PTR(m_carInObjective)
-	PS3_CHECK_PTR(m_pSeekTarget)
-	PS3_CHECK_PTR(m_pMyVehicle)
-	PS3_CHECK_PTR(m_leader)
-	PS3_CHECK_PTR(m_threatEntity)
-	PS3_CHECK_PTR(m_pEventEntity)
-	PS3_CHECK_PTR(m_pCollidingEntity)
-	PS3_CHECK_PTR(m_pCurrentPhysSurface)
-	PS3_CHECK_PTR(m_pDamageEntity)
+	PS3_CHECK_PTR(m_pLookTarget, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pedInObjective, PS3_IsLivePed)
+	PS3_CHECK_PTR(m_carInObjective, PS3_IsLiveVehicle)
+	PS3_CHECK_PTR(m_pSeekTarget, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pMyVehicle, PS3_IsLiveVehicle)
+	PS3_CHECK_PTR(m_leader, PS3_IsLivePed)
+	PS3_CHECK_PTR(m_threatEntity, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pEventEntity, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pCollidingEntity, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pCurrentPhysSurface, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pCurSurface, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pDamageEntity, PS3_EntityLive)
+	// not registered as references upstream: nothing clears them when their
+	// entity is deleted
+	PS3_CHECK_PTR(m_threatEx, PS3_EntityLive)
+	PS3_CHECK_PTR(m_followPathWalkAroundEnt, PS3_EntityLive)
+	PS3_CHECK_PTR(m_followPathTargetEnt, PS3_EntityLive)
+	PS3_CHECK_PTR(m_lastDamEntity, PS3_EntityLive)
+	PS3_CHECK_PTR(m_vehicleInAccident, PS3_IsLiveVehicle)
+	PS3_CHECK_PTR(m_fleeFrom, PS3_EntityLive)
+	PS3_CHECK_PTR(m_collidingEntityWhileFleeing, PS3_EntityLive)
+	PS3_CHECK_PTR(m_pPointGunAt, PS3_EntityLive)
+	PS3_CHECK_PTR(m_attachedTo, PS3_EntityLive)
 #undef PS3_CHECK_PTR
+	// the peds near this one (BuildPedLists): drop the dead ones
+	int n = 0;
+	for (int i = 0; i < ped->m_numNearPeds && i < ARRAY_SIZE(ped->m_nearPeds); i++) {
+		if (PS3_IsLivePed(ped->m_nearPeds[i]))
+			ped->m_nearPeds[n++] = ped->m_nearPeds[i];
+		else
+			PS3_LogStale(ped, "m_nearPeds[]", ped->m_nearPeds[i], where);
+	}
+	for (int i = n; i < ARRAY_SIZE(ped->m_nearPeds); i++)
+		ped->m_nearPeds[i] = nil;
+	ped->m_numNearPeds = n;
+	// what it collided with last frame
+	n = 0;
+	for (int i = 0; i < ped->m_nCollisionRecords && i < PHYSICAL_MAX_COLLISIONRECORDS; i++) {
+		if (PS3_EntityLive(ped->m_aCollisionRecords[i]))
+			ped->m_aCollisionRecords[n++] = ped->m_aCollisionRecords[i];
+		else
+			PS3_LogStale(ped, "m_aCollisionRecords[]", ped->m_aCollisionRecords[i], where);
+	}
+	ped->m_nCollisionRecords = n;
+	// its attractor (bus stop, seat, ATM...) may have been deleted (PedAttractor.cpp)
+	if (ped->m_attractor && !GetPedAttractorManager()->PS3_IsLive(ped->m_attractor)) {
+		static int logged;
+		if (logged < 16) {
+			logged++;
+			PS3_Logf("[attractor] ped %p model %d objective %d: attractor %p was deleted: forgotten (check %d)",
+			         ped, ped->GetModelIndex(), ped->m_objective, ped->m_attractor, where);
+		}
+		PS3_CRUMB("attractor: stale, check", where);
+		ped->m_attractor = nil;
+		ped->m_positionInQueue = -1;
+	}
 }
+
+// where in ProcessControl a ped is (crumbs: value = line in Ped.cpp)
+#define PS3_PED_STEP() PS3_CRUMB("ped: step (Ped.cpp line)", __LINE__ | (m_nPedState << 16))
+#define PS3_PED_CHECK() do { PS3_PED_STEP(); PS3_CheckPedPointers(this, __LINE__); } while (0)
+
+// ---- what the game thread was doing when it died ----------------------------
+// CWorld::Process sets PS3_curEntity before each entity's animations, control,
+// collision and shift. When the game thread dies, the main thread prints that
+// entity and, for a ped, every pointer it holds (which pool slot each one is,
+// live or deleted) and the ped's state. Only pool memory is read here.
+CEntity *PS3_curEntity;
+const char *PS3_curEntityStep = "";
+
+static void
+PS3_DumpPtr(const char *name, const void *p)
+{
+	char desc[48];
+	if (p == nil)
+		return;
+	PS3_DescribeEntityPtr(p, desc, sizeof(desc));
+	if (PS3_IsLivePed(p)) {
+		CPed *q = (CPed*)p;
+		PS3_Logf("[crash]   %s = %p (%s: model %d state %d objective %d rwObject %p)", name, p, desc,
+		         q->GetModelIndex(), q->m_nPedState, q->m_objective, (void*)q->m_rwObject);
+	} else if (PS3_EntityLive(p)) {
+		CEntity *e = (CEntity*)p;
+		PS3_Logf("[crash]   %s = %p (%s: model %d type %d)", name, p, desc, e->GetModelIndex(), e->GetType());
+	} else
+		PS3_Logf("[crash]   %s = %p (%s)", name, p, desc);
+}
+
+static void
+PS3_DumpCurrentEntity(void)
+{
+	CEntity *e = PS3_curEntity;
+	char desc[48];
+	if (e == nil)
+		return;
+	PS3_DescribeEntityPtr(e, desc, sizeof(desc));
+	if (!PS3_EntityLive(e)) {
+		PS3_Logf("[crash] entity in %s: %p (%s)", PS3_curEntityStep, e, desc);
+		return;
+	}
+	PS3_Logf("[crash] entity in %s: %p (%s), model %d, type %d, rwObject %p, pos %.1f %.1f %.1f",
+	         PS3_curEntityStep, e, desc, e->GetModelIndex(), e->GetType(), (void*)e->m_rwObject,
+	         e->GetPosition().x, e->GetPosition().y, e->GetPosition().z);
+	if (!e->IsPed())
+		return;
+	CPed *ped = (CPed*)e;
+	PS3_Logf("[crash]   ped: state %d (last %d), objective %d (last %d), wait %d, move %d, weapon %d, health %.0f, "
+	         "in vehicle %d, looking %d, ped type %d, near peds %d, collisions %d, IK ped %p, frames mid %p head %p, attractor %p (%s)",
+	         ped->m_nPedState, ped->m_nLastPedState, ped->m_objective, ped->m_prevObjective, ped->m_nWaitState,
+	         ped->m_nMoveState, ped->GetWeapon()->m_eWeaponType, ped->m_fHealth, ped->bInVehicle, ped->bIsLooking,
+	         ped->m_nPedType, ped->m_numNearPeds, ped->m_nCollisionRecords, (void*)ped->m_pedIK.m_ped,
+	         (void*)ped->m_pFrames[PED_MID], (void*)ped->m_pFrames[PED_HEAD],
+	         (void*)ped->m_attractor, ped->m_attractor == nil ? "none" :
+	         GetPedAttractorManager()->PS3_IsLive(ped->m_attractor) ? "live" : "DELETED");
+#define PS3_DUMP(m) PS3_DumpPtr(#m, ped->m)
+	PS3_DUMP(m_pLookTarget); PS3_DUMP(m_pedInObjective); PS3_DUMP(m_carInObjective);
+	PS3_DUMP(m_pSeekTarget); PS3_DUMP(m_pMyVehicle); PS3_DUMP(m_leader); PS3_DUMP(m_threatEntity);
+	PS3_DUMP(m_pEventEntity); PS3_DUMP(m_pCollidingEntity); PS3_DUMP(m_pCurrentPhysSurface);
+	PS3_DUMP(m_pCurSurface); PS3_DUMP(m_pDamageEntity); PS3_DUMP(m_threatEx);
+	PS3_DUMP(m_followPathWalkAroundEnt); PS3_DUMP(m_followPathTargetEnt); PS3_DUMP(m_lastDamEntity);
+	PS3_DUMP(m_vehicleInAccident); PS3_DUMP(m_fleeFrom); PS3_DUMP(m_collidingEntityWhileFleeing);
+	PS3_DUMP(m_pPointGunAt); PS3_DUMP(m_attachedTo);
+#undef PS3_DUMP
+	for (int i = 0; i < ped->m_numNearPeds && i < ARRAY_SIZE(ped->m_nearPeds); i++)
+		PS3_DumpPtr("m_nearPeds[]", ped->m_nearPeds[i]);
+	for (int i = 0; i < ped->m_nCollisionRecords && i < PHYSICAL_MAX_COLLISIONRECORDS; i++)
+		PS3_DumpPtr("m_aCollisionRecords[]", ped->m_aCollisionRecords[i]);
+}
+
+extern void (*PS3_crashDumpHook)(void);	// ps3_log.cpp
+static struct PS3_RegisterCrashDump {
+	PS3_RegisterCrashDump(void) { PS3_crashDumpHook = PS3_DumpCurrentEntity; }
+} PS3_registerCrashDump;
+#else
+#define PS3_PED_STEP()
+#define PS3_PED_CHECK()
 #endif
 
 void
@@ -1755,7 +1903,8 @@ CPed::ProcessControl(void)
 	CEntity *foundEnt = nil;
 
 #ifdef __PS3__
-	PS3_CheckPedPointers(this);
+	PS3_CheckPedPointers(this, 0);
+	PS3_CheckPedSkeleton(this);
 #endif
 
 	if (CTimer::GetFrameCounter() + m_randomSeed % 32 == 0)
@@ -1777,9 +1926,11 @@ CPed::ProcessControl(void)
 	CVisibilityPlugins::SetClumpAlpha(GetClump(), alpha);
 	bIsShooting = false;
 	bDonePositionOutOfCollision = false;
+	PS3_PED_STEP();
 	BuildPedLists();
 	bIsInWater = false;
 	bIsDrowning = false;
+	PS3_PED_STEP();
 	ProcessBuoyancy();
 
 	if (m_nPedState != PED_ARRESTED) {
@@ -1876,6 +2027,7 @@ CPed::ProcessControl(void)
 
 		bCollidedWithMyVehicle = false;
 
+		PS3_PED_STEP();
 		CEntity *collidingEnt = m_pDamageEntity;
 		if (!bUsesCollision || ((!collidingEnt || m_fDamageImpulse <= 0.0f) && (!IsPlayer() || !bIsStuck)) || m_nPedState == PED_DIE) {	
 			bHitSomethingLastFrame = false;
@@ -2562,12 +2714,14 @@ CPed::ProcessControl(void)
 		}
 
 		if (m_nPedState != PED_DIE || bIsPedDieAnimPlaying) {
+			PS3_PED_STEP();
 			RequestDelayedWeapon();
 			PlayFootSteps();
 			if (m_nPedState != PED_DEAD) {
 				CalculateNewVelocity();
 				CalculateNewOrientation();
 			}
+			PS3_PED_STEP();
 			UpdatePosition();
 			if (IsPedInControl() && !bIsStanding && !m_pDamageEntity) {
 				if (m_attachedTo) {
@@ -2583,6 +2737,7 @@ CPed::ProcessControl(void)
 				if (!CWorld::TestSphereAgainstWorld(posToCheck, 0.2f, this, true, true, false, true, false, false))
 					bHeadStuckInCollision = false;
 			}
+			PS3_PED_CHECK();
 			ProcessObjective();
 			if (!bIsAimingGun) {
 				if (bIsRestoringGun)
@@ -2591,6 +2746,7 @@ CPed::ProcessControl(void)
 				AimGun();
 			}
 
+			PS3_PED_CHECK();
 			if (bIsLooking) {
 				MoveHeadToLook();
 			} else if (bIsRestoringLook) {
@@ -2608,6 +2764,7 @@ CPed::ProcessControl(void)
 				}
 			}
 
+			PS3_PED_STEP();
 			if (m_nWaitState != WAITSTATE_FALSE)
 				Wait();
 
@@ -2653,6 +2810,7 @@ CPed::ProcessControl(void)
 			}
 #endif
 
+			PS3_PED_CHECK();
 			switch (m_nPedState) {
 				case PED_IDLE:
 					Idle();

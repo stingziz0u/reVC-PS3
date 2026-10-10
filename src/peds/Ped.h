@@ -364,6 +364,11 @@ extern float gfTommyFatness;
 
 class CVehicle;
 
+#ifdef __PS3__
+class CPed;
+RwMatrix *PS3_PedNodeMatrix(CPed *ped, int32 node, unsigned caller);	// PedIK.cpp
+#endif
+
 class CPed : public CPhysical
 {
 public:
@@ -1127,6 +1132,19 @@ public:
 	}
 
 	// Using this to abstract nodes of skinned and non-skinned meshes
+#ifdef __PS3__
+	// checked (PedIK.cpp): a matrix at the ped's position if the node can't be found
+	CVector GetNodePosition(int32 node)
+	{
+		RwMatrix *m = PS3_PedNodeMatrix(this, node, (unsigned)(uintptr_t)__builtin_return_address(0));
+		return CVector(m->pos.x, m->pos.y, m->pos.z);
+	}
+	void TransformToNode(CVector &pos, int32 node)
+	{
+		RwMatrix *m = PS3_PedNodeMatrix(this, node, (unsigned)(uintptr_t)__builtin_return_address(0));
+		RwV3dTransformPoints(&pos, &pos, 1, m);
+	}
+#else
 	CVector GetNodePosition(int32 node)
 	{
 		RwV3d pos = { 0.0f, 0.0f, 0.0f };
@@ -1143,6 +1161,7 @@ public:
 		RwMatrix *mats = RpHAnimHierarchyGetMatrixArray(hier);
 		RwV3dTransformPoints(&pos, &pos, 1, &mats[idx]);
 	}
+#endif
 
 	// set by 0482:set_threat_reaction_range_multiplier opcode
 	static uint16 nThreatReactionRangeMultiplier;

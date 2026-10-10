@@ -5,6 +5,9 @@
 #include "Vehicle.h"
 #include "World.h"
 #include "MemoryHeap.h"
+#ifdef __PS3__
+#include "ps3_platform.h"
+#endif
 
 const int gcMaxSizeOfAtmQueue = 1;
 const int gcMaxSizeOfSeatQueue = 1;
@@ -14,6 +17,54 @@ const int gcMaxSizeOfShelterQueue = 5;
 const int gcMaxSizeOfIceCreamQueue = 1;
 
 std::vector<CVector> CPedShelterAttractor::ms_displacements;
+
+#ifdef __PS3__
+// A ped can keep m_attractor after its attractor was deleted (the attractor
+// is freed when its last *registered* ped leaves, but a ped can point to it
+// without being in its queues: RegisterPed() erasing a ped that was already
+// approaching, SetNewAttraction() with another attractor set). The calls
+// below read the attractor (its 2d effect) before checking that the manager
+// still has it: on PC the freed memory usually still held the old data; on
+// the PS3 newlib hands it out again at once and the game thread dies reading
+// through it (the Riot crash with crowds of peds bumping into each other).
+// So the manager first checks the attractor is one of its own.
+bool
+CPedAttractorManager::PS3_IsLive(const CPedAttractor *pAttractor)
+{
+	const std::vector<CPedAttractor*> *lists[] = { &vAtmAttractors, &vSeatAttractors, &vStopAttractors,
+		&vPizzaAttractors, &vShelterAttractors, &vIceCreamAttractors };
+	if (pAttractor == nil)
+		return false;
+	for (int i = 0; i < ARRAY_SIZE(lists); i++)
+		for (size_t j = 0; j < lists[i]->size(); j++)
+			if ((*lists[i])[j] == pAttractor)
+				return true;
+	return false;
+}
+
+// pAttractor isn't the manager's any more: forget it in the ped
+static bool
+PS3_StaleAttractor(CPed *pPed, CPedAttractor *pAttractor, const char *where)
+{
+	static int logged;
+	if (logged < 16) {
+		logged++;
+		PS3_Logf("[attractor] %s: attractor %p of ped %p (model %d, objective %d) was deleted: forgotten",
+		         where, pAttractor, pPed, pPed ? pPed->GetModelIndex() : -1, pPed ? pPed->m_objective : -1);
+	}
+	PS3_CRUMB("attractor: stale, ped model", pPed ? pPed->GetModelIndex() : -1);
+	if (pPed && pPed->m_attractor == pAttractor) {
+		pPed->m_attractor = nil;
+		pPed->m_positionInQueue = -1;
+	}
+	return false;
+}
+#define PS3_ATTRACTOR_CHECK(where) \
+	if (!PS3_IsLive(pAttractor)) \
+		return PS3_StaleAttractor(pPed, pAttractor, where);
+#else
+#define PS3_ATTRACTOR_CHECK(where)
+#endif
 
 CPedAttractorManager* GetPedAttractorManager()
 {
@@ -504,6 +555,7 @@ bool CPedAttractorManager::DeRegisterPed(CPed* pPed, CPedAttractor* pAttractor)
 {
 	if (!pAttractor)
 		return false;
+	PS3_ATTRACTOR_CHECK("DeRegisterPed")
 	if (pAttractor->GetEffect()->type != EFFECT_PED_ATTRACTOR)
 		return nil;
 	if (!IsPedRegisteredWithEffect(pPed))
@@ -523,6 +575,7 @@ bool CPedAttractorManager::BroadcastArrival(CPed* pPed, CPedAttractor* pAttracto
 {
 	if (!pAttractor)
 		return false;
+	PS3_ATTRACTOR_CHECK("BroadcastArrival")
 	if (pAttractor->GetEffect()->type != EFFECT_PED_ATTRACTOR)
 		return nil;
 	if (!IsPedRegisteredWithEffect(pPed))
@@ -542,6 +595,7 @@ bool CPedAttractorManager::BroadcastDeparture(CPed* pPed, CPedAttractor* pAttrac
 {
 	if (!pAttractor)
 		return false;
+	PS3_ATTRACTOR_CHECK("BroadcastDeparture")
 	if (pAttractor->GetEffect()->type != EFFECT_PED_ATTRACTOR)
 		return nil;
 	if (!IsPedRegisteredWithEffect(pPed))
@@ -561,6 +615,7 @@ bool CPedAttractorManager::IsAtHeadOfQueue(CPed* pPed, CPedAttractor* pAttractor
 {
 	if (!pAttractor)
 		return false;
+	PS3_ATTRACTOR_CHECK("IsAtHeadOfQueue")
 	if (pAttractor->GetEffect()->type != EFFECT_PED_ATTRACTOR)
 		return nil;
 	if (!IsPedRegisteredWithEffect(pPed))
@@ -580,6 +635,7 @@ bool CPedAttractorManager::IsInQueue(CPed* pPed, CPedAttractor* pAttractor)
 {
 	if (!pAttractor)
 		return false;
+	PS3_ATTRACTOR_CHECK("IsInQueue")
 	if (pAttractor->GetEffect()->type != EFFECT_PED_ATTRACTOR)
 		return nil;
 	if (!IsPedRegisteredWithEffect(pPed))

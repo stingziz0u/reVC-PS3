@@ -56,6 +56,9 @@ public:
 	bool IsPedRegisteredWithEffect(CPed* pPed);
 	bool IsPedRegistered(CPed* pPed, std::vector<CPedAttractor*>& vecAttractors);
 	CVehicle* GetIceCreamVanForEffect(C2dEffect* pEffect);
+#ifdef __PS3__
+	bool PS3_IsLive(const CPedAttractor *pAttractor);
+#endif
 
 	static void ComputeEffectPos(const C2dEffect* pEffect, const CMatrix& matrix, CVector& pos);
 	static void ComputeEffectQueueDir(const C2dEffect* pEffect, const CMatrix& matrix, CVector& pos);
@@ -98,7 +101,12 @@ public:
 	virtual ~CPedAttractor() {};
 	virtual ePedAttractorType GetType() const = 0;
 	virtual void UpdatePedStateOnDeparture(CPed* pPed) const = 0;
+#ifdef __PS3__
+	// front() of an empty queue reads through a nil pointer
+	virtual bool IsAtHeadOfQueue(CPed* pPed) const { return !vWaitingQueue.empty() && vWaitingQueue.front() == pPed; }
+#else
 	virtual bool IsAtHeadOfQueue(CPed* pPed) const { return vWaitingQueue.front() == pPed; }
+#endif
 	virtual void ComputeAttractPos(int32 id, CVector& pos) const;
 	virtual void ComputeAttractHeading(int32 id, float& pHeading) const;
 	virtual bool BroadcastDeparture(CPed* pPed);

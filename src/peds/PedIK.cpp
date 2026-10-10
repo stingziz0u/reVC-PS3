@@ -37,6 +37,181 @@ CPedIK::CPedIK(CPed *ped)
 	m_lowerArmOrient.pitch = 0.0f;
 }
 
+#ifdef __PS3__
+void PS3_DescribeEntityPtr(const void *p, char *buf, int size);	// below
+
+// a bone's matrix by bone tag (PointGunInDirectionUsingArm): checked as below
+inline RwMatrix*
+GetBoneMatrix(CPed *ped, int32 bone)
+{
+	static RwMatrix fallback;
+	int idx;
+	bool isFree;
+	if (CPools::GetPedPool()->PS3_Owns(ped, &idx, &isFree) && !isFree && ped->m_rwObject &&
+	    RwObjectGetType(ped->m_rwObject) == rpCLUMP) {
+		RpHAnimHierarchy *hier = GetAnimHierarchyFromSkinClump(ped->GetClump());
+		if (hier && hier->matrices) {
+			int i = RpHAnimIDGetIndex(hier, bone);
+			if (i >= 0 && i < hier->numNodes)
+				return &RpHAnimHierarchyGetMatrixArray(hier)[i];
+		}
+	}
+	PS3_CRUMB_CALLER("ped: bad bone matrix, bone", bone);
+	RwMatrixSetIdentity(&fallback);
+	*RwMatrixGetPos(&fallback) = TheCamera.GetPosition();
+	return &fallback;
+}
+
+// The Riot crash (patch 13 log, with the trace): a rioter looking at the
+// player died in LookAtPosition -> GetComponentMatrix(m_ped, PED_MID), reading
+// its own node data before GetBoneMatrix. Every bone matrix of a ped is found
+// through here now: each step (the ped, its clump, its frame table, the HAnim
+// hierarchy, the bone index) is checked before it is followed; if one is
+// wrong, it is logged ([ped] node ...) and the caller gets a matrix at the
+// ped's position instead.
+// The cause was CPlayerPed::RemovePedFromMeleeList clearing the ped's IK
+// (fixed in patch 17); this stays as a safety net.
+RwMatrix*
+PS3_PedNodeMatrix(CPed *ped, int32 node, unsigned caller)
+{
+	static int logged;
+	static RwMatrix fallback;
+	const char *why = nil;
+	int idx = -1, bone = -1, numNodes = -1;
+	bool isFree = true, inPool;
+	AnimBlendFrameData *f = nil, *first = nil;
+	int numFrames = 0;
+	RpHAnimHierarchy *hier = nil;
+
+	inPool = CPools::GetPedPool()->PS3_Owns(ped, &idx, &isFree);
+	if (!inPool)
+		why = "not a ped";
+	else if (isFree)
+		why = "deleted ped";
+	else if (node < 0 || node >= PED_NODE_MAX)
+		why = "bad node";
+	else if (ped->m_rwObject == nil || RwObjectGetType(ped->m_rwObject) != rpCLUMP)
+		why = "no clump";
+	else {
+		CAnimBlendClumpData *data = *RPANIMBLENDCLUMPDATA(ped->GetClump());
+		f = ped->m_pFrames[node];
+		if (data == nil || data->frames == nil)
+			why = "no animation data";
+		else {
+			first = data->frames;
+			numFrames = data->numFrames;
+			if (f < first || f >= first + numFrames)
+				why = "frame not in its clump's frame table";
+			else if ((hier = GetAnimHierarchyFromSkinClump(ped->GetClump())) == nil)
+				why = "no HAnim hierarchy";
+			else if (hier->matrices == nil || hier->numNodes <= 0)
+				why = "hierarchy without matrices";
+			else {
+				numNodes = hier->numNodes;
+				bone = f->nodeID;
+				idx = RpHAnimIDGetIndex(hier, bone);
+				if (idx < 0 || idx >= numNodes)
+					why = "bone not in the hierarchy";
+				else
+					return &RpHAnimHierarchyGetMatrixArray(hier)[idx];
+			}
+		}
+	}
+
+	PS3_CRUMB_CALLER("ped: bad node matrix, node", node);
+	if (logged < 24) {
+		char desc[48];
+		logged++;
+		PS3_DescribeEntityPtr(ped, desc, sizeof(desc));
+		if (inPool && !isFree)
+			PS3_Logf("[ped] node %d: %s. ped %p = %s, model %d, state %d, rwObject %p, frame %p (table %p, %d frames), "
+			         "hierarchy %p (%d nodes), bone %d -> index %d; called from @%08x",
+			         node, why, ped, desc, ped->GetModelIndex(), ped->m_nPedState, (void*)ped->m_rwObject, f, first,
+			         numFrames, hier, numNodes, bone, idx, caller);
+		else
+			PS3_Logf("[ped] node %d: %s. ped %p = %s; called from @%08x", node, why, ped, desc, caller);
+	}
+	RwMatrixSetIdentity(&fallback);
+	if (inPool && !isFree)
+		*RwMatrixGetPos(&fallback) = ped->GetPosition();
+	else
+		*RwMatrixGetPos(&fallback) = TheCamera.GetPosition();
+	return &fallback;
+}
+
+// Once per frame (ProcessControl): the ped's IK must point to the ped, and
+// every node of its frame table must be inside its clump's frame data. The
+// IK code writes through these (RotateTorso, the head/arm quaternions), so a
+// bad table is rebuilt from the clump; if it can't be, the ped stops looking
+// and aiming with IK. Logged as [ped] skeleton ...
+static bool
+PS3_PedFrameTableOk(CPed *ped, int *badNode)
+{
+	CAnimBlendClumpData *data = *RPANIMBLENDCLUMPDATA(ped->GetClump());
+	if (data == nil || data->frames == nil || GetAnimHierarchyFromSkinClump(ped->GetClump()) == nil) {
+		*badNode = -1;
+		return false;
+	}
+	for (int i = PED_MID; i < PED_NODE_MAX; i++) {
+		AnimBlendFrameData *f = ped->m_pFrames[i];
+		if (f < data->frames || f >= data->frames + data->numFrames) {
+			*badNode = i;
+			return false;
+		}
+	}
+	return true;
+}
+
+bool
+PS3_CheckPedSkeleton(CPed *ped)
+{
+	static int logged;
+	int bad;
+	if (ped->m_pedIK.m_ped != ped) {
+		if (logged < 24) {
+			char desc[48];
+			logged++;
+			PS3_DescribeEntityPtr(ped->m_pedIK.m_ped, desc, sizeof(desc));
+			PS3_Logf("[ped] skeleton: IK of ped %p (model %d) pointed to %p (%s): fixed",
+			         ped, ped->GetModelIndex(), ped->m_pedIK.m_ped, desc);
+		}
+		PS3_CRUMB("ped: IK owner fixed, model", ped->GetModelIndex());
+		ped->m_pedIK.m_ped = ped;
+	}
+	if (ped->m_rwObject == nil || RwObjectGetType(ped->m_rwObject) != rpCLUMP || !IsClumpSkinned(ped->GetClump()))
+		return false;
+	if (PS3_PedFrameTableOk(ped, &bad))
+		return true;
+	AnimBlendFrameData *was = bad >= 0 ? ped->m_pFrames[bad] : nil;
+	CAnimBlendClumpData *data = *RPANIMBLENDCLUMPDATA(ped->GetClump());
+	bool fixed = false;
+	if (bad >= 0) {
+		RpAnimBlendClumpFillFrameArray(ped->GetClump(), ped->m_pFrames);
+		fixed = PS3_PedFrameTableOk(ped, &bad);
+	}
+	if (logged < 24) {
+		logged++;
+		PS3_Logf("[ped] skeleton: ped %p model %d state %d: node %d frame %p not in its clump (table %p, %d frames): %s",
+		         ped, ped->GetModelIndex(), ped->m_nPedState, bad, was, data ? data->frames : nil,
+		         data ? data->numFrames : 0, fixed ? "table rebuilt" : "can't rebuild, IK off");
+	}
+	PS3_CRUMB("ped: frame table bad, node", bad);
+	if (!fixed) {
+		ped->bDontAcceptIKLookAts = true;
+		ped->bIsLooking = false;
+		ped->bIsRestoringLook = false;
+		ped->bIsAimingGun = false;
+		ped->bIsRestoringGun = false;
+	}
+	return fixed;
+}
+
+inline RwMatrix*
+GetComponentMatrix(CPed *ped, int32 node)
+{
+	return PS3_PedNodeMatrix(ped, node, (unsigned)(uintptr_t)__builtin_return_address(0));
+}
+#else
 inline RwMatrix*
 GetBoneMatrix(CPed *ped, int32 bone)
 {
@@ -50,6 +225,7 @@ GetComponentMatrix(CPed *ped, int32 node)
 {
 	return GetBoneMatrix(ped, ped->m_pFrames[node]->nodeID);
 }
+#endif
 
 void
 CPedIK::RotateTorso(AnimBlendFrameData *node, LimbOrientation *limb, bool changeRoll)

@@ -23,6 +23,14 @@
 #include "TempColModels.h"
 #include "WaterLevel.h"
 #include "World.h"
+#ifdef __PS3__
+// the entity being processed, for the crash dump (Ped.cpp)
+extern CEntity *PS3_curEntity;
+extern const char *PS3_curEntityStep;
+#define PS3_CUR_ENTITY(e, step) (PS3_curEntity = (e), PS3_curEntityStep = (step))
+#else
+#define PS3_CUR_ENTITY(e, step)
+#endif
 
 #define OBJECT_REPOSITION_OFFSET_Z 2.0f
 
@@ -1951,6 +1959,7 @@ CWorld::Process(void)
 			if(!movingEnt->bRemoveFromWorld && movingEnt->m_rwObject && RwObjectGetType(movingEnt->m_rwObject) == rpCLUMP &&
 			   RpAnimBlendClumpGetFirstAssociation(movingEnt->GetClump())) {
 				PS3_CRUMB("world: anims model|type<<16", movingEnt->GetModelIndex() | movingEnt->GetType()<<16);
+				PS3_CUR_ENTITY(movingEnt, "animations");
 				if (movingEnt->IsObject())
 					RpAnimBlendClumpUpdateAnimations(movingEnt->GetClump(), CTimer::GetTimeStepNonClippedInSeconds());
 				else {
@@ -1963,9 +1972,12 @@ CWorld::Process(void)
 		for(CPtrNode *node = ms_listMovingEntityPtrs.first; node; node = node->next) {
 			CPhysical *movingEnt = (CPhysical *)node->item;
 			if(movingEnt->bRemoveFromWorld) {
+				PS3_CRUMB("world: remove model|type<<16", movingEnt->GetModelIndex() | movingEnt->GetType()<<16);
+				PS3_CUR_ENTITY(movingEnt, "removal");
 				RemoveEntityInsteadOfProcessingIt(movingEnt);
 			} else {
 				PS3_CRUMB("world: ProcessControl model|type<<16", movingEnt->GetModelIndex() | movingEnt->GetType()<<16);
+				PS3_CUR_ENTITY(movingEnt, "ProcessControl");
 				movingEnt->ProcessControl();
 				if(movingEnt->GetIsStatic()) { movingEnt->RemoveFromMovingList(); }
 			}
@@ -1978,6 +1990,7 @@ CWorld::Process(void)
 					RemoveEntityInsteadOfProcessingIt(movingEnt);
 				} else {
 					PS3_CRUMB("world: ProcessControl (postponed) model", movingEnt->GetModelIndex());
+					PS3_CUR_ENTITY(movingEnt, "ProcessControl");
 					movingEnt->ProcessControl();
 					if(movingEnt->GetIsStatic()) { movingEnt->RemoveFromMovingList(); }
 				}
@@ -1997,6 +2010,7 @@ CWorld::Process(void)
 				CEntity *movingEnt = (CEntity *)node->item;
 				if(!movingEnt->bIsInSafePosition) {
 					PS3_CRUMB("world: ProcessCollision model", movingEnt->GetModelIndex());
+					PS3_CUR_ENTITY(movingEnt, "ProcessCollision");
 					movingEnt->ProcessCollision();
 					movingEnt->GetMatrix().UpdateRW();
 					movingEnt->UpdateRwFrame();
@@ -2008,6 +2022,7 @@ CWorld::Process(void)
 					CEntity *movingEnt = (CEntity *)node->item;
 					if(!movingEnt->bIsInSafePosition) {
 						PS3_CRUMB("world: ProcessCollision model", movingEnt->GetModelIndex());
+						PS3_CUR_ENTITY(movingEnt, "ProcessCollision");
 						movingEnt->ProcessCollision();
 						movingEnt->GetMatrix().UpdateRW();
 						movingEnt->UpdateRwFrame();
@@ -2019,6 +2034,7 @@ CWorld::Process(void)
 				if(!movingEnt->bIsInSafePosition) {
 					movingEnt->bIsStuck = true;
 					PS3_CRUMB("world: ProcessCollision (stuck) model", movingEnt->GetModelIndex());
+					PS3_CUR_ENTITY(movingEnt, "ProcessCollision");
 					movingEnt->ProcessCollision();
 					movingEnt->GetMatrix().UpdateRW();
 					movingEnt->UpdateRwFrame();
@@ -2030,6 +2046,7 @@ CWorld::Process(void)
 				CEntity *movingEnt = (CEntity *)node->item;
 				if(!movingEnt->bIsInSafePosition) {
 					PS3_CRUMB("world: ProcessShift model", movingEnt->GetModelIndex());
+					PS3_CUR_ENTITY(movingEnt, "ProcessShift");
 					movingEnt->ProcessShift();
 					movingEnt->GetMatrix().UpdateRW();
 					movingEnt->UpdateRwFrame();
@@ -2041,6 +2058,7 @@ CWorld::Process(void)
 				CPhysical *movingEnt = (CPhysical *)node->item;
 				if(!movingEnt->bIsInSafePosition) {
 					PS3_CRUMB("world: ProcessShift model", movingEnt->GetModelIndex());
+					PS3_CUR_ENTITY(movingEnt, "ProcessShift");
 					movingEnt->ProcessShift();
 					movingEnt->GetMatrix().UpdateRW();
 					movingEnt->UpdateRwFrame();
@@ -2060,6 +2078,7 @@ CWorld::Process(void)
 			CPed *movingPed = (CPed *)node->item;
 			if(movingPed->IsPed()) {
 				PS3_CRUMB("world: ped in/at a vehicle model|state<<16", movingPed->GetModelIndex() | movingPed->m_nPedState<<16);
+				PS3_CUR_ENTITY(movingPed, "vehicle/attached position");
 				if(movingPed->bInVehicle && movingPed->m_nPedState != PED_EXIT_TRAIN ||
 				   movingPed->EnteringCar()) {
 					CVehicle *movingCar = movingPed->m_pMyVehicle;
@@ -2097,6 +2116,7 @@ CWorld::Process(void)
 				}
 			}
 		}
+		PS3_CUR_ENTITY(nil, "");
 		CMessages::Process();
 		Players[PlayerInFocus].Process();
 		CRecordDataForChase::SaveOrRetrieveCarPositions();

@@ -24,7 +24,7 @@ ifeq ($(strip $(PSL1GHT)),)
   export PSL1GHT := $(PS3DEV)
 endif
 
-VERSION := 1.0-alpha
+VERSION := 1.1-alpha
 STAGE   ?= 2
 DEBUG   ?= 0
 FTRACE  ?= 0
@@ -157,13 +157,15 @@ GAME_OBJS  := $(patsubst $(ROOT)/%.cpp,$(OBJDIR)/%.o,$(GAME_SRCS) $(PS3_SRCS)) \
 ELF := $(OBJDIR)/$(TARGET).elf
 
 # Diagnostics (FTRACE=1): the code where the crashes of the alpha were is built
-# with a function entry/exit trace (ps3_log.cpp keeps the last 4096 events and
+# with a function entry/exit trace (ps3_log.cpp keeps the last 16384 events and
 # dumps them when the game thread dies). The small math/entity/list helpers
 # are left out. It costs a little CPU on every call, so the release is
 # built without it; the crumbs stay in both.
 FTRACE_DIRS := peds weapons collision render/Shadows render/Particle core/World \
   render/Hud core/Radar render/Font render/Sprite2d render/SpecialFX text/Messages \
-  control/Darkel control/Pickups control/Garages
+  control/Darkel control/Pickups control/Garages animation/AnimManager \
+  animation/RpAnimBlend animation/AnimBlendAssociation animation/AnimBlendClumpData \
+  core/References core/EventList core/Accident core/Fire entities/Physical
 FTRACE_EXCLUDE := math/ Vector Matrix Quaternion General.h Timer.h Rect.h templates.h \
   common.h Lists.h Placeable.h Entity.h Physical.h PtrList.h PtrNode.h ColPoint.h \
   ColModel.h ColTriangle.h ColBox.h ColSphere.h ColLine.h CompressedVector.h \

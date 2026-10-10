@@ -2079,6 +2079,23 @@ CPlayerPed::UpdateMeleeAttackers(void)
 void
 CPlayerPed::RemovePedFromMeleeList(CPed *ped)
 {
+#ifdef __PS3__
+	// The Riot crash. The original loop read m_pMeleeList[i] before checking
+	// i, so for GCC the ped had to be in the list: it dropped the bound check
+	// and kept scanning memory past the list (the rest of the player, then the
+	// ped pool) until it found a pointer equal to ped, and wrote nil there.
+	// That was often the ped's own m_pedIK.m_ped (what crashed in
+	// MoveHeadToLook), or any other pointer to it, or a fault if none came
+	// first. It happened every time a ped whose target is the player was hit
+	// while it wasn't in the player's melee list (the Riot strikers).
+	for (int i = 0; i < ARRAY_SIZE(m_pMeleeList); i++) {
+		if (m_pMeleeList[i] == ped) {
+			m_pMeleeList[i] = nil;
+			ped->m_attackTimer = 0;
+			return;
+		}
+	}
+#else
 	int i = 0;
 	for (; m_pMeleeList[i] != ped; i++) {
 		if (i >= ARRAY_SIZE(m_pMeleeList))
@@ -2086,6 +2103,7 @@ CPlayerPed::RemovePedFromMeleeList(CPed *ped)
 	}
 	m_pMeleeList[i] = nil;
 	ped->m_attackTimer = 0;
+#endif
 }
 
 void
