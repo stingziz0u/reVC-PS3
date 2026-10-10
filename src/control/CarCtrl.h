@@ -138,9 +138,9 @@ public:
 
 	static float LimitRadianAngle(float angle)
 	{
-		while (angle < -PI)
+		while (PS3_ANGLE_OK(angle) && angle < -PI)
 			angle += TWOPI;
-		while (angle > PI)
+		while (PS3_ANGLE_OK(angle) && angle > PI)
 			angle -= TWOPI;
 		return angle;
 	}

@@ -1833,7 +1833,7 @@ CStreaming::StreamZoneModels(const CVector &pos)
 		timeBeforeNextLoad--;
 	else{
 		// Switch a ped
-		int oldMI;
+		int oldMI = -1;
 		// Find a ped to unload
 		for(i = 0; i < NUMMODELSPERPEDGROUP; i++)
 			if(ms_bIsPedFromPedGroupLoaded[i]){

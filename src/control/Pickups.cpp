@@ -1274,8 +1274,13 @@ CPickups::DoCollectableEffects(CEntity *entity)
 void
 CPickups::RenderPickUpText()
 {
+#ifndef __PS3__
 	wchar *strToPrint;
+#endif
 	for (int32 i = 0; i < NumMessages; i++) {
+#ifdef __PS3__
+		wchar *strToPrint = nil;	// a quantity outside 0..13 left it unset (MSVC: the previous message's)
+#endif
 
 		if (aMessages[i].money != 0) {
 			sprintf(gString, "$%d", aMessages[i].money);

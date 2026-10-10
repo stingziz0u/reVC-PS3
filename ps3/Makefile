@@ -24,7 +24,7 @@ ifeq ($(strip $(PSL1GHT)),)
   export PSL1GHT := $(PS3DEV)
 endif
 
-VERSION := 1.1-alpha
+VERSION := 1.1.1-alpha
 STAGE   ?= 2
 DEBUG   ?= 0
 FTRACE  ?= 0
@@ -121,6 +121,15 @@ endif
 # The whole EBOOT shares one 64 KB TOC: -mminimal-toc gives each object its
 # own TOC block (see the check target).
 COMMON_FLAGS += -mminimal-toc
+
+# reVC was written for MSVC, which doesn't exploit undefined behaviour the way
+# GCC does. The Riot crash (patch 17) was a loop that read one past an array
+# before its bound check: GCC took the read as proof the loop ends inside the
+# array and dropped the check. These keep GCC's code close to what MSVC made:
+# loop bounds aren't derived from UB, null checks after a dereference stay,
+# and signed overflow wraps (patch 18 compared every function: 73, 317 and
+# 460 functions changed with each flag).
+COMMON_FLAGS += -fno-aggressive-loop-optimizations -fno-delete-null-pointer-checks -fwrapv
 
 ifeq ($(DEBUG),1)
   COMMON_FLAGS += -g -DPS3_DEBUG
@@ -242,15 +251,23 @@ $(OBJDIR)/GitSHA1.cpp:
 	@echo '#define GIT_SHA1 "revc-ps3 patch $(PATCHLEVEL)"' > $@
 	@echo 'const char* g_GIT_SHA1 = GIT_SHA1;' >> $@
 
-$(OBJDIR)/GitSHA1.o: $(OBJDIR)/GitSHA1.cpp
+$(OBJDIR)/GitSHA1.o: $(OBJDIR)/GitSHA1.cpp $(OBJDIR)/flags.mode
 	@$(CXX) $(GAME_FLAGS) -c $< -o $@
 
-$(OBJDIR)/vendor/%.o: $(ROOT)/vendor/%.cpp
+# Every object depends on the compiler flags: a tree built with other flags
+# (before patch 18) is rebuilt without a make clean.
+$(OBJDIR)/flags.mode: FORCE
+	@mkdir -p $(dir $@)
+	@echo '$(subst ','',$(GAME_FLAGS) $(LIBRW_FLAGS))' > $@.tmp
+	@cmp -s $@.tmp $@ || mv $@.tmp $@
+	@rm -f $@.tmp
+
+$(OBJDIR)/vendor/%.o: $(ROOT)/vendor/%.cpp $(OBJDIR)/flags.mode
 	@mkdir -p $(dir $@)
 	@echo "CXX $(patsubst $(ROOT)/%,%,$<)"
 	@$(CXX) $(LIBRW_FLAGS) -c $< -o $@
 
-$(OBJDIR)/src/%.o: $(SRC)/%.cpp
+$(OBJDIR)/src/%.o: $(SRC)/%.cpp $(OBJDIR)/flags.mode
 	@mkdir -p $(dir $@)
 	@echo "CXX $(patsubst $(ROOT)/%,%,$<)"
 	@$(CXX) $(GAME_FLAGS) $(OBJ_FLAGS) -c $< -o $@

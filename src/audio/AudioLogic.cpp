@@ -2971,7 +2971,11 @@ cAudioManager::ProcessVehicleOneShots(cVehicleParams& params)
 				int32 frequency;
 				CPed *pPed = params.m_pVehicle->pDriver;
 				if(!pPed)
+#ifdef __PS3__
+					continue;	// break only left the inner switch: the volume was used unset
+#else
 					break;
+#endif
 				if(!pPed->HasWeaponSlot(WEAPONSLOT_SUBMACHINEGUN)) {
 					sampleIndex = SFX_UZI_LEFT;
 					frequency = SampleManager.GetSampleBaseFrequency(sampleIndex);

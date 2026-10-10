@@ -1194,8 +1194,8 @@ void CScriptPath::Update(void) {
 				m_pObjects[i]->m_vecMoveSpeed = (m_pObjects[i]->GetPosition() - prevMat.GetPosition()) / CTimer::GetTimeStep();
 
 				float deltaAngle = m_pObjects[i]->GetForward().Heading() - prevMat.GetForward().Heading();
-				while (deltaAngle < (float)PI) deltaAngle += (float)TWOPI;
-				while (deltaAngle > (float)PI) deltaAngle -= (float)TWOPI;
+				while (PS3_ANGLE_OK(deltaAngle) && deltaAngle < (float)PI) deltaAngle += (float)TWOPI;
+				while (PS3_ANGLE_OK(deltaAngle) && deltaAngle > (float)PI) deltaAngle -= (float)TWOPI;
 				float zTurnSpeed = deltaAngle / CTimer::GetTimeStep();
 
 				m_pObjects[i]->m_vecTurnSpeed = CVector(0.0f, 0.0f, zTurnSpeed);

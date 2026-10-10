@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/thread.h>
 
 #include <sys/mutex.h>
 
@@ -251,6 +253,20 @@ PS3_ScriptCrumb(const char *name8, int command, unsigned ip)
 	scriptCount++;
 }
 
+// an angle loop got inf/NaN/a huge angle (common.h PS3_AngleOk): it would
+// never have ended
+extern "C" __attribute__((noinline)) void
+PS3_BadAngle(void)
+{
+	static int logged;
+	unsigned where = (unsigned)(uintptr_t)__builtin_return_address(0);
+	PS3_CrumbAt("bad angle in an angle loop", 0, where);
+	if (logged < 16) {
+		logged++;
+		PS3_Logf("[angle] an angle loop got an infinite/NaN/huge angle (set to 0) @%08x", where);
+	}
+}
+
 // a CPool had no free slot: the new object isn't made (templates.h)
 extern "C" void
 PS3_PoolFull(const char *name, int size)
@@ -404,4 +420,56 @@ PS3_InstallCrashHandler(void)
 		PS3_Logf("[crash handler] not available (0x%08x): crashes only leave the crumbs", (unsigned)ret);
 	else
 		PS3_Log("[crash handler] ready: a crash logs pc, registers and a backtrace");
+}
+
+// ---- hang watchdog ---------------------------------------------------------
+// A freeze (an endless loop, a wait that never ends) leaves no crash dump:
+// the game thread is still alive. This thread wakes up once a second; if the
+// game has run frames and then none for 20 s, it writes the same dump as a
+// crash ([hang] ...), once per freeze, and says when frames come back.
+static volatile int watchdogQuit;
+static sys_ppu_thread_t watchdogTid;
+
+static void
+PS3_WatchdogThread(void *arg)
+{
+	unsigned last = 0, still = 0;
+	int reported = 0;
+	(void)arg;
+	while (!watchdogQuit) {
+		usleep(1000000);
+		unsigned f = PS3_crumbFrame;
+		if (f == 0 || f != last) {
+			if (reported)
+				PS3_Logf("[hang] frames again after %u s (frame %u)", still, f);
+			last = f;
+			still = 0;
+			reported = 0;
+			continue;
+		}
+		if (++still >= 20 && !reported && !watchdogQuit) {
+			reported = 1;
+			PS3_Logf("[hang] no frame for %u s (stuck in frame %u); what the game thread was doing:", still, f);
+			PS3_DumpCrumbs();
+		}
+	}
+	sysThreadExit(0);
+}
+
+void
+PS3_StartWatchdog(void)
+{
+	if (sysThreadCreate(&watchdogTid, PS3_WatchdogThread, NULL, 900, 64 * 1024,
+	                    THREAD_JOINABLE, (char *)"watchdog") != 0)
+		watchdogTid = 0;
+}
+
+void
+PS3_StopWatchdog(void)
+{
+	u64 ret;
+	watchdogQuit = 1;
+	if (watchdogTid)
+		sysThreadJoin(watchdogTid, &ret);
+	watchdogTid = 0;
 }

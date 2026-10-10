@@ -521,7 +521,11 @@ void
 CPopulation::AddToPopulation(float minDist, float maxDist, float minDistOffScreen, float maxDistOffScreen)
 {
 	uint32 pedTypeToAdd;
+#ifdef __PS3__
+	int32 modelToAdd = -1;	// a forced non-gang type after a gang roll left it unset (MSVC: stale stack)
+#else
 	int32 modelToAdd;
+#endif
 	int pedAmount;
 
 	CZoneInfo zoneInfo;
@@ -672,7 +676,11 @@ CPopulation::AddToPopulation(float minDist, float maxDist, float minDistOffScree
 						!CStreaming::HasModelLoaded(CWeaponInfo::GetWeaponInfo(WEAPONTYPE_MP5)->m_nModelId) || !CStreaming::HasModelLoaded(CWeaponInfo::GetWeaponInfo(WEAPONTYPE_GRENADE)->m_nModelId))
 						return;
 				}
+#ifdef __PS3__
+			} else if (modelToAdd < 0 || !CStreaming::HasModelLoaded(modelToAdd)) {
+#else
 			} else if (!CStreaming::HasModelLoaded(modelToAdd)) {
+#endif
 				return;
 			}
 			generatedCoors.z += 0.7f;

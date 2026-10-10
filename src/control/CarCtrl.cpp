@@ -1589,14 +1589,14 @@ void CCarCtrl::WeaveForOtherCar(CEntity* pOtherEntity, CVehicle* pVehicle, float
 	float angleToWeave = lengthToEvade / 2;
 	if (diffToLeftAngle < angleToWeave){
 		*pAngleToWeaveLeft = angleBetweenVehicles - angleToWeave;
-		while (*pAngleToWeaveLeft < -PI)
+		while (PS3_ANGLE_OK(*pAngleToWeaveLeft) && *pAngleToWeaveLeft < -PI)
 			*pAngleToWeaveLeft += TWOPI;
 	}
 	float diffToRightAngle = LimitRadianAngle(angleBetweenVehicles - *pAngleToWeaveRight);
 	diffToRightAngle = ABS(diffToRightAngle);
 	if (diffToRightAngle < angleToWeave){
 		*pAngleToWeaveRight = angleBetweenVehicles + angleToWeave;
-		while (*pAngleToWeaveRight > PI)
+		while (PS3_ANGLE_OK(*pAngleToWeaveRight) && *pAngleToWeaveRight > PI)
 			*pAngleToWeaveRight -= TWOPI;
 	}
 }
@@ -1637,14 +1637,14 @@ void CCarCtrl::WeaveForPed(CEntity* pOtherEntity, CVehicle* pVehicle, float* pAn
 	float angleToWeave = lengthToEvade / 2;
 	if (diffToLeftAngle < angleToWeave) {
 		*pAngleToWeaveLeft = angleBetweenVehicleAndPed - angleToWeave;
-		while (*pAngleToWeaveLeft < -PI)
+		while (PS3_ANGLE_OK(*pAngleToWeaveLeft) && *pAngleToWeaveLeft < -PI)
 			*pAngleToWeaveLeft += TWOPI;
 	}
 	float diffToRightAngle = LimitRadianAngle(angleBetweenVehicleAndPed - *pAngleToWeaveRight);
 	diffToRightAngle = ABS(diffToRightAngle);
 	if (diffToRightAngle < angleToWeave) {
 		*pAngleToWeaveRight = angleBetweenVehicleAndPed + angleToWeave;
-		while (*pAngleToWeaveRight > PI)
+		while (PS3_ANGLE_OK(*pAngleToWeaveRight) && *pAngleToWeaveRight > PI)
 			*pAngleToWeaveRight -= TWOPI;
 	}
 }
@@ -1709,14 +1709,14 @@ void CCarCtrl::WeaveForObject(CEntity* pOtherEntity, CVehicle* pVehicle, float* 
 	float angleToWeave = lengthToEvade / 2;
 	if (diffToLeftAngle < angleToWeave) {
 		*pAngleToWeaveLeft = angleBetweenVehicleAndObject - angleToWeave;
-		while (*pAngleToWeaveLeft < -PI)
+		while (PS3_ANGLE_OK(*pAngleToWeaveLeft) && *pAngleToWeaveLeft < -PI)
 			*pAngleToWeaveLeft += TWOPI;
 	}
 	float diffToRightAngle = LimitRadianAngle(angleBetweenVehicleAndObject - *pAngleToWeaveRight);
 	diffToRightAngle = ABS(diffToRightAngle);
 	if (diffToRightAngle < angleToWeave) {
 		*pAngleToWeaveRight = angleBetweenVehicleAndObject + angleToWeave;
-		while (*pAngleToWeaveRight > PI)
+		while (PS3_ANGLE_OK(*pAngleToWeaveRight) && *pAngleToWeaveRight > PI)
 			*pAngleToWeaveRight -= TWOPI;
 	}
 }
@@ -2697,9 +2697,9 @@ void CCarCtrl::SteerAIHeliTowardsTargetCoors(CAutomobile* pHeli)
 		if (pHeli->m_fHeliOrientation >= 0.0f)
 			fAngleTarget = pHeli->m_fHeliOrientation;
 		fAngleTarget -= pHeli->m_fOrientation;
-		while (fAngleTarget < -PI)
+		while (PS3_ANGLE_OK(fAngleTarget) && fAngleTarget < -PI)
 			fAngleTarget += TWOPI;
-		while (fAngleTarget > PI)
+		while (PS3_ANGLE_OK(fAngleTarget) && fAngleTarget > PI)
 			fAngleTarget -= TWOPI;
 		if (Abs(fAngleTarget) <= 0.4f)
 			ZTurnSpeedTarget = 0.0f;
@@ -2737,7 +2737,7 @@ void CCarCtrl::SteerAIPlaneTowardsTargetCoors(CAutomobile* pPlane)
 	float fForwardZ = (pPlane->AutoPilot.m_vecDestinationCoors.z - pPlane->GetPosition().z) / vecToTarget.Magnitude();
 	fForwardZ = clamp(fForwardZ, -0.3f, 0.3f);
 	float angle = CGeneral::GetATanOfXY(vecToTarget.x, vecToTarget.y);
-	while (angle > TWOPI)
+	while (PS3_ANGLE_OK(angle) && angle > TWOPI)
 		angle -= TWOPI;
 	float difference = LimitRadianAngle(angle - pPlane->m_fOrientation);
 	float steer = difference > 0.0f ? 0.04f : -0.04f;

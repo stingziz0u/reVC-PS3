@@ -367,8 +367,8 @@ WellBufferMe(float Target, float *CurrentValue, float *CurrentSpeed, float MaxSp
 	float Delta = Target - *CurrentValue;
 
 	if(IsAngle){
-		while(Delta >= PI) Delta -= 2*PI;
-		while(Delta < -PI) Delta += 2*PI;
+		while (PS3_ANGLE_OK(Delta) && Delta >= PI) Delta -= 2*PI;
+		while (PS3_ANGLE_OK(Delta) && Delta < -PI) Delta += 2*PI;
 	}
 
 	float TargetSpeed = Delta * MaxSpeed;
@@ -392,8 +392,8 @@ WellBufferMe(float Target, float *CurrentValue, float *CurrentSpeed, float MaxSp
 void
 MakeAngleLessThan180(float &Angle)
 {
-	while(Angle >= PI) Angle -= 2*PI;
-	while(Angle < -PI) Angle += 2*PI;
+	while (PS3_ANGLE_OK(Angle) && Angle >= PI) Angle -= 2*PI;
+	while (PS3_ANGLE_OK(Angle) && Angle < -PI) Angle += 2*PI;
 }
 
 void
@@ -590,8 +590,8 @@ CCam::LookBehind(void)
 		TargetFwd.Normalise();
 		TargetOrientation = CGeneral::GetATanOfXY(TargetFwd.x, TargetFwd.y);
 		DeltaBeta = TargetOrientation - Beta;
-		while(DeltaBeta >= PI) DeltaBeta -= 2*PI;
-		while(DeltaBeta < -PI) DeltaBeta += 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta >= PI) DeltaBeta -= 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta < -PI) DeltaBeta += 2*PI;
 		if(DirectionWasLooking != LOOKING_BEHIND)
 			LookBehindCamWasInFront = DeltaBeta <= -HALFPI || DeltaBeta >= HALFPI;
 		if(LookBehindCamWasInFront)
@@ -810,8 +810,8 @@ CCam::ClipIfPedInFrontOfPlayer(void)
 		vDist = Player->m_nearPeds[ped]->GetPosition() - TheCamera.GetGameCamPosition();
 		PedAngle = CGeneral::GetATanOfXY(vDist.x, vDist.y);
 		DeltaAngle = FwdAngle - PedAngle;
-		while(DeltaAngle >= PI) DeltaAngle -= 2*PI;
-		while(DeltaAngle < -PI) DeltaAngle += 2*PI;
+		while (PS3_ANGLE_OK(DeltaAngle) && DeltaAngle >= PI) DeltaAngle -= 2*PI;
+		while (PS3_ANGLE_OK(DeltaAngle) && DeltaAngle < -PI) DeltaAngle += 2*PI;
 		if(Abs(DeltaAngle) < HALFPI){
 			fDist = vDist.Magnitude2D();
 			if(fDist < 1.25f){
@@ -1076,8 +1076,8 @@ CCam::Process_FollowPed(const CVector &CameraTarget, float TargetOrientation, fl
 		 Beta = TargetOrientation;
 	}
 
-	while(Beta >= PI) Beta -= 2.0f * PI;
-	while(Beta < -PI) Beta += 2.0f * PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2.0f * PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2.0f * PI;
 
 	if(TheCamera.PedZoomIndicator == CAM_ZOOM_1 &&
 	   ((CPed*)CamTargetEntity)->GetPedState() != PED_ENTER_CAR &&
@@ -1161,18 +1161,18 @@ CCam::Process_FollowPed(const CVector &CameraTarget, float TargetOrientation, fl
 	if(Rotating || TheCamera.m_fAvoidTheGeometryProbsTimer > fAvoidGeomThreshhold){
 		m_bFixingBeta = true;
 
-		while(FixedTargetOrientation >= PI) FixedTargetOrientation -= 2*PI;
-		while(FixedTargetOrientation < -PI) FixedTargetOrientation += 2*PI;
+		while (PS3_ANGLE_OK(FixedTargetOrientation) && FixedTargetOrientation >= PI) FixedTargetOrientation -= 2*PI;
+		while (PS3_ANGLE_OK(FixedTargetOrientation) && FixedTargetOrientation < -PI) FixedTargetOrientation += 2*PI;
 
-		while(Beta >= PI) Beta -= 2*PI;
-		while(Beta < -PI) Beta += 2*PI;
+		while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+		while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 
 
 		// This is inlined WellBufferMe - unfortunately modified so we can't just call it
 		{
 		DeltaBeta = FixedTargetOrientation - Beta;
-		while(DeltaBeta >= PI) DeltaBeta -= 2*PI;
-		while(DeltaBeta < -PI) DeltaBeta += 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta >= PI) DeltaBeta -= 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta < -PI) DeltaBeta += 2*PI;
 
 		// this is the added bit
 		if(!Rotating){
@@ -1211,8 +1211,8 @@ CCam::Process_FollowPed(const CVector &CameraTarget, float TargetOrientation, fl
 
 		// Check if we can stop rotating
 		DeltaBeta = FixedTargetOrientation - Beta;
-		while(DeltaBeta >= PI) DeltaBeta -= 2*PI;
-		while(DeltaBeta < -PI) DeltaBeta += 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta >= PI) DeltaBeta -= 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta < -PI) DeltaBeta += 2*PI;
 		if(Abs(DeltaBeta) < DEGTORAD(1.0f) && !bBehindPlayerDesired){
 			// Stop rotation
 			PickedASide = false;
@@ -1417,8 +1417,8 @@ CCam::Process_FollowPedWithMouse(const CVector &CameraTarget, float TargetOrient
 
 	Alpha += AlphaOffset;
 	Beta += BetaOffset;
-	while(Beta >= PI) Beta -= 2*PI;
-	while(Beta < -PI) Beta += 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 	if(Alpha > DEGTORAD(45.0f)) Alpha = DEGTORAD(45.0f);
 	else if(Alpha < -DEGTORAD(89.5f)) Alpha = -DEGTORAD(89.5f);
 
@@ -1648,15 +1648,15 @@ CCam::WorkOutCamHeight(const CVector &TargetCoors, float TargetOrientation, floa
 	CVector Forward = CamTargetEntity->GetForward();
 	float CarAlpha = CGeneral::GetATanOfXY(Forward.Magnitude2D(), Forward.z);
 	// this shouldn't be necessary....
-	while(CarAlpha >= PI) CarAlpha -= 2*PI;
-	while(CarAlpha < -PI) CarAlpha += 2*PI;
+	while (PS3_ANGLE_OK(CarAlpha) && CarAlpha >= PI) CarAlpha -= 2*PI;
+	while (PS3_ANGLE_OK(CarAlpha) && CarAlpha < -PI) CarAlpha += 2*PI;
 
-	while(Beta >= PI) Beta -= 2*PI;
-	while(Beta < -PI) Beta += 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 
 	float DeltaBeta = Beta - TargetOrientation;
-	while(DeltaBeta >= PI) DeltaBeta -= 2*PI;
-	while(DeltaBeta < -PI) DeltaBeta += 2*PI;
+	while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta >= PI) DeltaBeta -= 2*PI;
+	while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta < -PI) DeltaBeta += 2*PI;
 
 	float BehindCarNess = Cos(DeltaBeta);	// 1 if behind car, 0 if side, -1 if in front
 	CarAlpha = -CarAlpha * BehindCarNess;
@@ -1693,8 +1693,8 @@ CCam::WorkOutCamHeight(const CVector &TargetCoors, float TargetOrientation, floa
 
 	float TargetAlpha = Alpha;
 	float DeltaAlpha = CarAlpha - TargetAlpha;
-	while(DeltaAlpha >= PI) DeltaAlpha -= 2*PI;
-	while(DeltaAlpha < -PI) DeltaAlpha += 2*PI;
+	while (PS3_ANGLE_OK(DeltaAlpha) && DeltaAlpha >= PI) DeltaAlpha -= 2*PI;
+	while (PS3_ANGLE_OK(DeltaAlpha) && DeltaAlpha < -PI) DeltaAlpha += 2*PI;
 	if(Abs(DeltaAlpha) > 0.0f && !TheCamera.m_bVehicleSuspenHigh)
 		TargetAlpha = CarAlpha;
 
@@ -1736,8 +1736,8 @@ CCam::RotCamIfInFrontCar(CVector &TargetCoors, float TargetOrientation)
 	float Dist = (Source - TargetCoors).Magnitude2D();
 
 	float DeltaBeta = TargetOrientation - Beta;
-	while(DeltaBeta >= PI) DeltaBeta -= 2*PI;
-	while(DeltaBeta < -PI) DeltaBeta += 2*PI;
+	while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta >= PI) DeltaBeta -= 2*PI;
+	while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta < -PI) DeltaBeta += 2*PI;
 
 	if(Abs(DeltaBeta) > PI-MaxDiffBeta && MovingForward && TheCamera.m_uiTransitionState == 0)
 		m_bFixingBeta = true;
@@ -1770,8 +1770,8 @@ CCam::RotCamIfInFrontCar(CVector &TargetCoors, float TargetOrientation)
 
 		// Check if we're done
 		DeltaBeta = TargetOrientation - Beta;
-		while(DeltaBeta >= PI) DeltaBeta -= 2*PI;
-		while(DeltaBeta < -PI) DeltaBeta += 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta >= PI) DeltaBeta -= 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta < -PI) DeltaBeta += 2*PI;
 		if(Abs(DeltaBeta) < DEGTORAD(2.0f))
 			m_bFixingBeta = false;
 	}
@@ -2261,8 +2261,8 @@ CCam::Process_Rocket(const CVector &CameraTarget, float, float, float)
 		Beta += SQR(LookLeftRight/100.0f)*xdir*0.8f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 		Alpha += SQR(LookUpDown/150.0f)*ydir*1.0f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 	}
-	while(Beta >= PI) Beta -= 2*PI;
-	while(Beta < -PI) Beta += 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 	if(Alpha > DEGTORAD(60.0f)) Alpha = DEGTORAD(60.0f);
 	else if(Alpha < -DEGTORAD(89.5f)) Alpha = -DEGTORAD(89.5f);
 
@@ -2369,8 +2369,8 @@ CCam::Process_M16_1stPerson(const CVector &CameraTarget, float, float, float)
 		Alpha += SQR(LookUpDown/150.0f)*ydir*1.0f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 	}
 	if (!isAttached) {
-		while(Beta >= TWOPI) Beta -= TWOPI;
-		while(Beta < 0) Beta += TWOPI;
+		while (PS3_ANGLE_OK(Beta) && Beta >= TWOPI) Beta -= TWOPI;
+		while(PS3_ANGLE_OK(Beta) && Beta < 0) Beta += TWOPI;
 	}
 	if(Alpha > DEGTORAD(60.0f)) Alpha = DEGTORAD(60.0f);
 	else if(Alpha < -DEGTORAD(89.5f)) Alpha = -DEGTORAD(89.5f);
@@ -2414,8 +2414,8 @@ CCam::Process_M16_1stPerson(const CVector &CameraTarget, float, float, float)
 				}
 			}
 		}else{
-			while(Beta < -PI) Beta += TWOPI;
-			while(Beta >= PI) Beta -= TWOPI;
+			while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += TWOPI;
+			while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= TWOPI;
 		}
 
 		mat = TargetPed->m_attachedTo->GetMatrix();
@@ -2566,8 +2566,8 @@ CCam::Process_1stPerson(const CVector &CameraTarget, float TargetOrientation, fl
 		float ydir = LookUpDown < 0.0f ? -1.0f : 1.0f;
 		Beta += SQR(LookLeftRight/100.0f)*xdir*0.8f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 		Alpha += SQR(LookUpDown/150.0f)*ydir*1.0f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
-		while(Beta >= PI) Beta -= 2*PI;
-		while(Beta < -PI) Beta += 2*PI;
+		while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+		while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 		if(Alpha > DEGTORAD(60.0f)) Alpha = DEGTORAD(60.0f);
 		else if(Alpha < -DEGTORAD(89.5f)) Alpha = -DEGTORAD(89.5f);
 
@@ -2774,8 +2774,8 @@ CCam::Process_1rstPersonPedOnPC(const CVector&, float TargetOrientation, float, 
 			Beta += SQR(LookLeftRight/100.0f)*xdir*0.8f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 			Alpha += SQR(LookUpDown/150.0f)*ydir*1.0f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 		}
-		while(Beta >= PI) Beta -= 2*PI;
-		while(Beta < -PI) Beta += 2*PI;
+		while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+		while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 		if(Alpha > DEGTORAD(60.0f)) Alpha = DEGTORAD(60.0f);
 		else if(Alpha < -DEGTORAD(89.5f)) Alpha = -DEGTORAD(89.5f);
 
@@ -2913,8 +2913,8 @@ CCam::Process_Sniper(const CVector &CameraTarget, float TargetOrientation, float
 		Beta += SQR(LookLeftRight/100.0f)*xdir*0.8f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 		Alpha += SQR(LookUpDown/150.0f)*ydir*1.0f/14.0f * FOV/80.0f * CTimer::GetTimeStep();
 	}
-	while(Beta >= PI) Beta -= 2*PI;
-	while(Beta < -PI) Beta += 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 	if(Alpha > DEGTORAD(60.0f)) Alpha = DEGTORAD(60.0f);
 	else if(Alpha < -DEGTORAD(89.5f)) Alpha = -DEGTORAD(89.5f);
 
@@ -3039,8 +3039,8 @@ CCam::Process_Syphon(const CVector &CameraTarget, float, float, float)
 	AlphaOffset = INIT_SYPHON_ALPHA_OFFSET;
 	float GroundDist = INIT_SYPHON_GROUND_DIST;
 
-	while(Beta >= PI) Beta -= 2*PI;
-	while(Beta < -PI) Beta += 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 
 	float NewBeta = CGeneral::GetATanOfXY(TheCamera.m_cvecAimingTargetCoors.x - TargetCoors.x, TheCamera.m_cvecAimingTargetCoors.y - TargetCoors.y) + PI;
 	if(ResetStatics){
@@ -3069,10 +3069,10 @@ CCam::Process_Syphon(const CVector &CameraTarget, float, float, float)
 	TargetAlpha = CGeneral::GetATanOfXY(fAimingDist, TheCamera.m_cvecAimingTargetCoors.z - TargetCoors.z);
 	if(ResetStatics)	// BUG: can never happen
 		Alpha = -TargetAlpha;
-	while(TargetAlpha >= PI) TargetAlpha -= 2*PI;
-	while(TargetAlpha < -PI) TargetAlpha += 2*PI;
-	while(Alpha >= PI) Alpha -= 2*PI;
-	while(Alpha < -PI) Alpha += 2*PI;
+	while (PS3_ANGLE_OK(TargetAlpha) && TargetAlpha >= PI) TargetAlpha -= 2*PI;
+	while (PS3_ANGLE_OK(TargetAlpha) && TargetAlpha < -PI) TargetAlpha += 2*PI;
+	while (PS3_ANGLE_OK(Alpha) && Alpha >= PI) Alpha -= 2*PI;
+	while (PS3_ANGLE_OK(Alpha) && Alpha < -PI) Alpha += 2*PI;
 
 	// inlined
 	if(StandingOnMovingThing)
@@ -3169,8 +3169,8 @@ CCam::Process_Syphon_Crim_In_Front(const CVector &CameraTarget, float, float, fl
 		Source = TargetCoors + CVector(vDist.x/fDist*TargetDist, vDist.y/fDist*TargetDist, zOffset);
 
 	AimingAngle = CGeneral::GetATanOfXY(TheCamera.m_cvecAimingTargetCoors.x - TargetCoors.x, TheCamera.m_cvecAimingTargetCoors.y - TargetCoors.y);
-	while(AimingAngle >= PI) AimingAngle -= 2*PI;
-	while(AimingAngle < -PI) AimingAngle += 2*PI;
+	while (PS3_ANGLE_OK(AimingAngle) && AimingAngle >= PI) AimingAngle -= 2*PI;
+	while (PS3_ANGLE_OK(AimingAngle) && AimingAngle < -PI) AimingAngle += 2*PI;
 
 	if(ResetStatics){
 		if(AimingAngle > 0.0f)
@@ -3361,20 +3361,20 @@ CCam::Process_Fight_Cam(const CVector &CameraTarget, float TargetOrientation, fl
 	Front = Source - CameraTarget;
 	if(ResetStatics)
 		Beta = CGeneral::GetATanOfXY(Front.x, Front.y);
-	while(TargetOrientation >= PI) TargetOrientation -= 2*PI;
-	while(TargetOrientation < -PI) TargetOrientation += 2*PI;
-	while(Beta >= PI) Beta -= 2*PI;
-	while(Beta < -PI) Beta += 2*PI;
+	while (PS3_ANGLE_OK(TargetOrientation) && TargetOrientation >= PI) TargetOrientation -= 2*PI;
+	while (PS3_ANGLE_OK(TargetOrientation) && TargetOrientation < -PI) TargetOrientation += 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2*PI;
 
 	// Figure out Beta
 	BetaLeft = TargetOrientation - DEGTORAD(FIGHT_BETA_ANGLE);
 	BetaRight = TargetOrientation + DEGTORAD(FIGHT_BETA_ANGLE);
 	DeltaBetaLeft = Beta - BetaLeft;
 	DeltaBetaRight = Beta - BetaRight;
-	while(DeltaBetaLeft >= PI) DeltaBetaLeft -= 2*PI;
-	while(DeltaBetaLeft < -PI) DeltaBetaLeft += 2*PI;
-	while(DeltaBetaRight >= PI) DeltaBetaRight -= 2*PI;
-	while(DeltaBetaRight < -PI) DeltaBetaRight += 2*PI;
+	while (PS3_ANGLE_OK(DeltaBetaLeft) && DeltaBetaLeft >= PI) DeltaBetaLeft -= 2*PI;
+	while (PS3_ANGLE_OK(DeltaBetaLeft) && DeltaBetaLeft < -PI) DeltaBetaLeft += 2*PI;
+	while (PS3_ANGLE_OK(DeltaBetaRight) && DeltaBetaRight >= PI) DeltaBetaRight -= 2*PI;
+	while (PS3_ANGLE_OK(DeltaBetaRight) && DeltaBetaRight < -PI) DeltaBetaRight += 2*PI;
 
 	if(ResetStatics){
 		if(Abs(DeltaBetaLeft) < Abs(DeltaBetaRight))
@@ -4643,10 +4643,10 @@ CCam::Process_FollowPed_Rotation(const CVector &CameraTarget, float TargetOrient
 	float GroundDist = Dist.Magnitude2D();
 	Beta = CGeneral::GetATanOfXY(-Dist.x, -Dist.y);
 	Alpha = CGeneral::GetATanOfXY(GroundDist, -Dist.z);
-	while(Beta >= PI) Beta -= 2.0f*PI;
-	while(Beta < -PI) Beta += 2.0f*PI;
-	while(Alpha >= PI) Alpha -= 2.0f*PI;
-	while(Alpha < -PI) Alpha += 2.0f*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2.0f*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2.0f*PI;
+	while (PS3_ANGLE_OK(Alpha) && Alpha >= PI) Alpha -= 2.0f*PI;
+	while (PS3_ANGLE_OK(Alpha) && Alpha < -PI) Alpha += 2.0f*PI;
 
 	// Look around
 	bool UseMouse = false;
@@ -4679,15 +4679,15 @@ CCam::Process_FollowPed_Rotation(const CVector &CameraTarget, float TargetOrient
 
 	Beta += BetaOffset;
 	Alpha += AlphaOffset;
-	while(Beta >= PI) Beta -= 2.0f*PI;
-	while(Beta < -PI) Beta += 2.0f*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta >= PI) Beta -= 2.0f*PI;
+	while (PS3_ANGLE_OK(Beta) && Beta < -PI) Beta += 2.0f*PI;
 	if(Alpha > DEGTORAD(45.0f)) Alpha = DEGTORAD(45.0f);
 	else if(Alpha < -DEGTORAD(89.5f)) Alpha = -DEGTORAD(89.5f);
 
 
 	float BetaDiff = TargetOrientation+PI - Beta;
-	while(BetaDiff >= PI) BetaDiff -= 2.0f*PI;
-	while(BetaDiff < -PI) BetaDiff += 2.0f*PI;
+	while (PS3_ANGLE_OK(BetaDiff) && BetaDiff >= PI) BetaDiff -= 2.0f*PI;
+	while (PS3_ANGLE_OK(BetaDiff) && BetaDiff < -PI) BetaDiff += 2.0f*PI;
 	float TargetAlpha = Alpha;
 	// 12deg to account for our little height offset. we're not working on the true alpha here
 	const float AlphaLimitUp = DEGTORAD(15.0f) + DEGTORAD(12.0f);
@@ -4708,8 +4708,8 @@ CCam::Process_FollowPed_Rotation(const CVector &CameraTarget, float TargetOrient
 	if(Rotating){
 		WellBufferMe(m_fTargetBeta, &Beta, &BetaSpeed, 0.1f, 0.06f, true);
 		float DeltaBeta = m_fTargetBeta - Beta;
-		while(DeltaBeta >= PI) DeltaBeta -= 2*PI;
-		while(DeltaBeta < -PI) DeltaBeta += 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta >= PI) DeltaBeta -= 2*PI;
+		while (PS3_ANGLE_OK(DeltaBeta) && DeltaBeta < -PI) DeltaBeta += 2*PI;
 		if(Abs(DeltaBeta) < 0.06f)
 			Rotating = false;
 	}

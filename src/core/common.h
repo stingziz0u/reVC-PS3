@@ -77,11 +77,18 @@ extern "C" void PS3_CrumbAt(const char *tag, int val, unsigned where);
 extern "C" void PS3_ScriptCrumb(const char *name8, int command, unsigned ip);
 #define PS3_CRUMB(tag, val) PS3_Crumb(tag, val)
 extern "C" void PS3_PoolFull(const char *name, int size);	// ps3_log.cpp
+// The "while (a >= PI) a -= TWOPI;" loops of the game (100+, patch 18):
+// with an infinite or huge angle they never end and the game freezes. A
+// sane angle is left alone; anything else (inf, NaN, |a| >= 100000) is 0.
+extern "C" void PS3_BadAngle(void);	// ps3_log.cpp: crumb + one log line
+static inline bool PS3_AngleOk(float &a) { if (!(a > -100000.0f && a < 100000.0f)) { a = 0.0f; PS3_BadAngle(); } return true; }
+#define PS3_ANGLE_OK(a) PS3_AngleOk(a)
 // the address is where the current function was called from
 #define PS3_CRUMB_CALLER(tag, val) PS3_CrumbAt(tag, val, (unsigned)(uintptr_t)__builtin_return_address(0))
 #else
 #define PS3_CRUMB(tag, val)
 #define PS3_CRUMB_CALLER(tag, val)
+#define PS3_ANGLE_OK(a) true
 #endif
 
 // gotta put this somewhere

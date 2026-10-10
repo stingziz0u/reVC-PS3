@@ -1033,7 +1033,9 @@ main(int argc, char *argv[])
 		PS3_LogShutdown();
 		return 1;
 	}
+	PS3_StartWatchdog();
 	ret = sysThreadJoin(tid, &retval);
+	PS3_StopWatchdog();
 
 	// -1 without an [8] line = the game thread died (crash) right after the
 	// last line above

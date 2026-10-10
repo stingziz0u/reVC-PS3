@@ -3267,8 +3267,8 @@ CAutomobile::FireTruckControl(void)
 		float targetCannonAngle = fwdAngle - targetAngle;
 		float angleDelta = CTimer::GetTimeStep()*0.01f;
 		float cannonDelta = targetCannonAngle - m_fCarGunLR;
-		while(cannonDelta < PI) cannonDelta += TWOPI;
-		while(cannonDelta > PI) cannonDelta -= TWOPI;
+		while (PS3_ANGLE_OK(cannonDelta) && cannonDelta < PI) cannonDelta += TWOPI;
+		while (PS3_ANGLE_OK(cannonDelta) && cannonDelta > PI) cannonDelta -= TWOPI;
 		if(Abs(cannonDelta) < angleDelta)
 			m_fCarGunLR = targetCannonAngle;
 		else if(cannonDelta > 0.0f)
@@ -5765,7 +5765,7 @@ CAutomobile::TellHeliToGoToCoors(float x, float y, float z, uint8 speed)
 
 	if(m_fOrientation == 0.0f){
 		m_fOrientation = CGeneral::GetATanOfXY(GetForward().x, GetForward().y) + PI;
-		while(m_fOrientation > TWOPI) m_fOrientation -= TWOPI;
+		while (PS3_ANGLE_OK(m_fOrientation) && m_fOrientation > TWOPI) m_fOrientation -= TWOPI;
 	}
 }
 

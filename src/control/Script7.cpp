@@ -267,7 +267,7 @@ int8 CRunningScript::ProcessCommands1200To1299(int32 command)
 		float fAngle = DEGTORAD(*(float*)&ScriptParams[1] - 90.0f);
 		while (fAngle < 0.0f)
 			fAngle += TWOPI;
-		while (fAngle > TWOPI)
+		while (PS3_ANGLE_OK(fAngle) && fAngle > TWOPI)
 			fAngle -= TWOPI;
 		pHeli->SetHeliOrientation(fAngle);
 		return 0;

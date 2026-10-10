@@ -979,7 +979,7 @@ CPed::Attack(void)
 			&& (GetWeapon()->m_eWeaponState != WEAPONSTATE_RELOADING
 				|| GetWeapon()->m_eWeaponType == WEAPONTYPE_MINIGUN)) {
 
-			PedOnGroundState pedOnGroundState;
+			PedOnGroundState pedOnGroundState = NO_PED;	// unset without nastyGame
 			if (ourWeapon->m_eWeaponFire == WEAPON_FIRE_MELEE &&
 				(CGame::nastyGame && ((pedOnGroundState = CheckForPedsOnGroundToAttack(this, nil)) > PED_IN_FRONT_OF_ATTACKER)
 				|| GetWeapon()->m_eWeaponType == WEAPONTYPE_BASEBALLBAT && pedOnGroundState == NO_PED && bIsStanding && m_pCurSurface && m_pCurSurface->IsVehicle())) {

@@ -60,8 +60,8 @@ COcclusion::AddOne(float x, float y, float z, float width, float length, float h
 	aOccluders[NumOccludersOnMap].width = width;
 	aOccluders[NumOccludersOnMap].length = length;
 	aOccluders[NumOccludersOnMap].height = height;
-	while(angle < 0.0f) angle += 360.0f;
-	while(angle > 360.0f) angle -= 360.0f;
+	while(PS3_ANGLE_OK(angle) && angle < 0.0f) angle += 360.0f;
+	while (PS3_ANGLE_OK(angle) && angle > 360.0f) angle -= 360.0f;
 	aOccluders[NumOccludersOnMap].angle = angle/360.0f * UINT16_MAX;
 	aOccluders[NumOccludersOnMap].listIndex = FarAwayList;
 	FarAwayList = NumOccludersOnMap++;
