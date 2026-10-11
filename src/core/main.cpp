@@ -1400,21 +1400,37 @@ RenderEffects(void)
 		return;
 	}
 #endif
+	PS3_CRUMB("fx: CGlass::Render", 0);
 	CGlass::Render();
+	PS3_CRUMB("fx: CWaterCannons::Render", 0);
 	CWaterCannons::Render();
+	PS3_CRUMB("fx: CSpecialFX::Render", 0);
 	CSpecialFX::Render();
+	PS3_CRUMB("fx: CRopes::Render", 0);
 	CRopes::Render();
+	PS3_CRUMB("fx: CShadows::RenderStaticShadows", 0);
 	CShadows::RenderStaticShadows();
+	PS3_CRUMB("fx: CShadows::RenderStoredShadows", 0);
 	CShadows::RenderStoredShadows();
+	PS3_CRUMB("fx: CSkidmarks::Render", 0);
 	CSkidmarks::Render();
+	PS3_CRUMB("fx: CAntennas::Render", 0);
 	CAntennas::Render();
+	PS3_CRUMB("fx: CRubbish::Render", 0);
 	CRubbish::Render();
+	PS3_CRUMB("fx: CCoronas::Render", 0);
 	CCoronas::Render();
+	PS3_CRUMB("fx: CParticle::Render", 0);
 	CParticle::Render();
+	PS3_CRUMB("fx: CPacManPickups::Render", 0);
 	CPacManPickups::Render();
+	PS3_CRUMB("fx: CWeaponEffects::Render", 0);
 	CWeaponEffects::Render();
+	PS3_CRUMB("fx: CPointLights::RenderFogEffect", 0);
 	CPointLights::RenderFogEffect();
+	PS3_CRUMB("fx: CMovingThings::Render", 0);
 	CMovingThings::Render();
+	PS3_CRUMB("fx: CRenderer::RenderFirstPersonVehicle", 0);
 	CRenderer::RenderFirstPersonVehicle();
 }
 

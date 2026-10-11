@@ -174,7 +174,9 @@ FTRACE_DIRS := peds weapons collision render/Shadows render/Particle core/World 
   render/Hud core/Radar render/Font render/Sprite2d render/SpecialFX text/Messages \
   control/Darkel control/Pickups control/Garages animation/AnimManager \
   animation/RpAnimBlend animation/AnimBlendAssociation animation/AnimBlendClumpData \
-  core/References core/EventList core/Accident core/Fire entities/Physical
+  core/References core/EventList core/Accident core/Fire entities/Physical \
+  render/Glass render/WaterCannon core/Ropes render/Skidmarks render/Antennas render/Rubbish \
+  render/Coronas render/PointLights render/Fluff weapons/WeaponEffects
 FTRACE_EXCLUDE := math/ Vector Matrix Quaternion General.h Timer.h Rect.h templates.h \
   common.h Lists.h Placeable.h Entity.h Physical.h PtrList.h PtrNode.h ColPoint.h \
   ColModel.h ColTriangle.h ColBox.h ColSphere.h ColLine.h CompressedVector.h \
