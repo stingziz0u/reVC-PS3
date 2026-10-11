@@ -27,6 +27,7 @@ static int log_mutex_ok;
 
 // set by the exception handler: the stopped game thread may hold the mutex
 static volatile int log_crashing;
+static volatile int log_buffered;	// the watchdog flushes the log (see log_write)
 
 static void log_lock(void)
 {
@@ -54,6 +55,10 @@ PS3_LogInit(void)
 	remove(PS3_LOG_OLD_PATH);
 	rename(PS3_LOG_PATH, PS3_LOG_OLD_PATH);
 	log_file = __real_fopen(PS3_LOG_PATH, "w");
+	if (log_file) {
+		static char log_buf[64 * 1024];
+		setvbuf(log_file, log_buf, _IOFBF, sizeof(log_buf));
+	}
 	log_bytes = 0;
 	log_capped = 0;
 }
@@ -103,7 +108,12 @@ log_write(const char *msg, int newline)
 		fputc('\n', log_file);
 		log_bytes++;
 	}
-	fflush(log_file);
+	// Once the watchdog runs, lines stay in the buffer and it writes them
+	// out every second: a write to the disk per line stalled the game
+	// thread while the streaming read from the same disk (the hitches when
+	// new areas load). Crash and hang dumps still go out right away.
+	if (!log_buffered || log_crashing || strncmp(msg, "[crash]", 7) == 0 || strncmp(msg, "[hang]", 6) == 0)
+		fflush(log_file);
 }
 
 extern "C" void
@@ -284,10 +294,14 @@ PS3_BadAngle(void)
 extern "C" void
 PS3_PoolFull(const char *name, int size)
 {
-	if (size < 0)
-		PS3_Logf("[pool] %s: handle asked for something not in the pool (nil?) @%08x", name ? name : "?",
-		         (unsigned)(uintptr_t)__builtin_return_address(0));
-	else
+	static int nBadHandle;
+	if (size < 0) {
+		// at most 16 lines, then one every 1024 (a caller that does it every frame)
+		if (nBadHandle++ < 16 || (nBadHandle & 1023) == 0)
+			PS3_Logf("[pool] %s: handle asked for something not in the pool (nil?) @%08x (%d times)", name ? name : "?",
+			         (unsigned)(uintptr_t)__builtin_return_address(0), nBadHandle);
+		return;
+	} else
 		PS3_Logf("[pool] %s pool full (%d): an object wasn't created", name ? name : "?", size);
 	PS3_Crumb("pool full: size", size);
 }
@@ -450,12 +464,20 @@ PS3_WatchdogThread(void *arg)
 	int reported = 0;
 	(void)arg;
 	int tick = 0;
+	log_buffered = 1;
 	while (!watchdogQuit) {
 		usleep(1000000);
 		// the console may have to be switched off by force (a freeze that
-		// takes the system with it): get the log onto the disk every 5 s
+		// takes the system with it): the log's lines to the file every
+		// second, onto the disk every 5 s
 		if (++tick % 5 == 0)
 			PS3_LogSync();
+		else {
+			log_lock();
+			if (log_file)
+				fflush(log_file);
+			log_unlock();
+		}
 		unsigned f = PS3_crumbFrame;
 		if (f == 0 || f != last) {
 			if (reported)

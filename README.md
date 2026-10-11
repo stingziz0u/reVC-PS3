@@ -30,7 +30,9 @@ PS3 layer.
 > settings, and X on the pause menu map sets a waypoint without closing
 > the map.
 > 1.2 alpha adds graphics options: mipmaps, texture filtering (bilinear,
-> trilinear, anisotropic) and antialiasing (FXAA).
+> trilinear, anisotropic) and antialiasing (FXAA), and fewer hitches when
+> new areas stream in (textures converted several times faster, spread
+> over frames, and the log written in the background).
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
