@@ -33,6 +33,12 @@ PS3 layer.
 > trilinear, anisotropic) and antialiasing (FXAA), and fewer hitches when
 > new areas stream in (textures converted several times faster, spread
 > over frames, and the log written in the background).
+>
+> **Known issue:** a freeze after crashing a bike at high speed has been
+> reported. 1.2 alpha has fixes for what could cause it (the audio no longer
+> makes the game wait for the disk, and the world's sector loops can't run
+> away on bad coordinates), but it hasn't been confirmed fixed. If it
+> happens to you, please send the log.
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
