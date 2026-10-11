@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.1.1 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.1.2 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, but it hasn't had long play-throughs yet. Expect bugs and please
@@ -23,6 +23,10 @@ PS3 layer.
 > with the PC compiler (unset variables, loops that could freeze the game,
 > compiler optimizations that broke the original code), and the log now
 > records what the game was doing when it crashes or freezes.
+> 1.1.2 alpha fixes a crash (and a full console freeze) from particles
+> (debris, sparks) animated past the end of their texture list, and
+> halves the dust and smoke particles at 60 fps (helicopters near the
+> ground no longer drop the frame rate).
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
@@ -51,7 +55,7 @@ PlayStation button icons and the controller picture of the settings page).
 
 ## Installation
 
-1. Install `revc-ps3-1.1.1-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.1.2-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
@@ -127,7 +131,7 @@ On Linux or WSL (Ubuntu):
    make -C ps3 verify
    ```
 
-   The result is `ps3/revc-ps3-1.1.1-alpha.pkg`.
+   The result is `ps3/revc-ps3-1.1.2-alpha.pkg`.
 
 Other targets: `make -C ps3 DEBUG=1` (debug build with asserts),
 `make -C ps3 FTRACE=1` (function trace of peds, weapons, collision, HUD,
