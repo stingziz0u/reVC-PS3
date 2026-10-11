@@ -34,6 +34,9 @@ extern int8 gbShowFps;
 // FRAME RATE: 30 (the game's own, as on the PS2) or 60. ps3.cpp paces the flips
 int8 gPS3Fps60;
 const char *fps30_60[] = { "FEG_F30", "FEG_F60" };
+// Gamepad settings: right stick sensitivity, third and first person (Cam.cpp)
+extern int8 gPS3Sens3rd, gPS3Sens1st;
+const char *sensLevels[] = { "FEC_SN0", "FEC_SN1", "FEC_SN2", "FEC_SN3", "FEC_SN4", "FEC_SN5", "FEC_SN6" };
 #ifdef RW_PS3_RSX
 #include "src/ps3/rwps3.h"
 // Display menu: how much of the TV the picture covers (overscan), 50..100 %
@@ -764,6 +767,8 @@ CMenuScreenCustom aScreens[] = {
 		INVERT_PAD_SELECTOR
 #ifdef __PS3__	// the camera is the pad's; no vibration on the PS3 port
 		FREE_CAM_TOGGLE
+		MENUACTION_CFO_SELECT, "FEC_S3P", { new CCFOSelect((int8*)&gPS3Sens3rd, "Controller", "Sensitivity3rdPerson", sensLevels, 7, false) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_SELECT, "FEC_S1P", { new CCFOSelect((int8*)&gPS3Sens1st, "Controller", "Sensitivity1stPerson", sensLevels, 7, false) }, 0, 0, MENUALIGN_LEFT,
 #else
 		MENUACTION_CTRLVIBRATION,	"FEC_VIB", { nil, SAVESLOT_NONE, MENUPAGE_CONTROLLER_SETTINGS }, 0, 0, MENUALIGN_LEFT,
 #endif

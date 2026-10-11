@@ -7,6 +7,15 @@ static const struct { const char *key; const char *text; } ps3TextFallback[] = {
 	{ "FEG_FRT", "FRAME RATE" },	// reVC-PS3's own
 	{ "FEG_F30", "30 FPS" },	// reVC-PS3's own
 	{ "FEG_F60", "60 FPS" },	// reVC-PS3's own
+	{ "FEC_S3P", "3RD PERSON SENSITIVITY" },	// reVC-PS3's own
+	{ "FEC_S1P", "1ST PERSON SENSITIVITY" },	// reVC-PS3's own
+	{ "FEC_SN0", "50%" },	// reVC-PS3's own
+	{ "FEC_SN1", "75%" },	// reVC-PS3's own
+	{ "FEC_SN2", "100%" },	// reVC-PS3's own
+	{ "FEC_SN3", "125%" },	// reVC-PS3's own
+	{ "FEC_SN4", "150%" },	// reVC-PS3's own
+	{ "FEC_SN5", "175%" },	// reVC-PS3's own
+	{ "FEC_SN6", "200%" },	// reVC-PS3's own
 	{ "FEH_MPS", "STICK/D-PAD MOVE - ~J~ ~V~ ZOOM - ~X~ WAYPOINT - ~K~ LEGEND" },	// reVC-PS3's own
 	{ "CRIMRA", "Criminal rating:" },
 	{ "FEA_2SP", "2 Speakers" },
