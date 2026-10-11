@@ -30,7 +30,7 @@ PS3 layer.
 > settings, and X on the pause menu map sets a waypoint without closing
 > the map.
 > 1.2 alpha adds graphics options: mipmaps, texture filtering (bilinear,
-> trilinear, anisotropic) and antialiasing (2x/4x MSAA).
+> trilinear, anisotropic) and antialiasing (FXAA).
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
@@ -59,9 +59,8 @@ PlayStation button icons and the controller picture of the settings page).
   - **Texture filtering**: Default (the game's own), Bilinear, Trilinear,
     Anisotropic 2x to 16x (sharper ground and roads at an angle). With
     Mipmaps off, only the textures that have them in their TXD use them.
-  - **Antialiasing**: 2x or 4x MSAA (smoother edges). 4x costs the most
-    GPU time and ~22 MB more video memory: if the frame rate drops at
-    60 fps, use 2x.
+  - **Antialiasing**: Off or FXAA (smoother edges, a filter over the
+    finished picture: ~2 ms of GPU time and 7 MB of video memory at 720p).
   All three are off/default unless you choose them.
 - DXT1 textures (most of the PC game's) are kept in 16 bits in video memory:
   half the VRAM, the same look.

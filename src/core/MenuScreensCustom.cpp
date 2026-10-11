@@ -34,11 +34,11 @@ extern int8 gbShowFps;
 // FRAME RATE: 30 (the game's own, as on the PS2) or 60. ps3.cpp paces the flips
 int8 gPS3Fps60;
 const char *fps30_60[] = { "FEG_F30", "FEG_F60" };
-// Graphics menu: MIPMAPS, TEXTURE FILTERING, ANTIALIASING (ps3.cpp hands
-// them to the RSX renderer every frame)
+// Graphics menu: MIPMAPS, TEXTURE FILTERING, ANTIALIASING (OFF / FXAA;
+// ps3.cpp hands them to the RSX renderer every frame)
 int8 gPS3Mipmaps, gPS3TexFilter, gPS3Antialias;
 const char *texFilterNames[] = { "FEG_TF0", "FEG_TF1", "FEG_TF2", "FEG_TF3", "FEG_TF4", "FEG_TF5", "FEG_TF6" };
-const char *antialiasNames[] = { "FEM_OFF", "FEG_AA2", "FEG_AA4" };
+const char *antialiasNames[] = { "FEM_OFF", "FEG_AAF" };
 // Gamepad settings: right stick sensitivity, third and first person (Cam.cpp)
 extern int8 gPS3Sens3rd, gPS3Sens1st;
 const char *sensLevels[] = { "FEC_SN0", "FEC_SN1", "FEC_SN2", "FEC_SN3", "FEC_SN4", "FEC_SN5", "FEC_SN6" };
@@ -850,7 +850,7 @@ CMenuScreenCustom aScreens[] = {
 		MENUACTION_CFO_SELECT, "FEG_FRT", { new CCFOSelect((int8*)&gPS3Fps60, "Graphics", "FrameRate60", fps30_60, 2, false) }, 0, 0, MENUALIGN_LEFT,
 		MENUACTION_CFO_SELECT, "FEG_MIP", { new CCFOSelect((int8*)&gPS3Mipmaps, "Graphics", "Mipmaps", off_on, 2, false) }, 0, 0, MENUALIGN_LEFT,
 		MENUACTION_CFO_SELECT, "FEG_TXF", { new CCFOSelect((int8*)&gPS3TexFilter, "Graphics", "TextureFiltering", texFilterNames, ARRAY_SIZE(texFilterNames), false) }, 0, 0, MENUALIGN_LEFT,
-		MENUACTION_CFO_SELECT, "FEG_AAL", { new CCFOSelect((int8*)&gPS3Antialias, "Graphics", "Antialiasing", antialiasNames, ARRAY_SIZE(antialiasNames), false) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_SELECT, "FEG_AAL", { new CCFOSelect((int8*)&gPS3Antialias, "Graphics", "FXAA", antialiasNames, ARRAY_SIZE(antialiasNames), false) }, 0, 0, MENUALIGN_LEFT,
 #else
 #ifdef LEGACY_MENU_OPTIONS
 		MENUACTION_FRAMESYNC,	"FEM_VSC", {nil, SAVESLOT_NONE, MENUPAGE_GRAPHICS_SETTINGS}, 0, 0, MENUALIGN_LEFT,
