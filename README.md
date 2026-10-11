@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.1.2 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.2 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, but it hasn't had long play-throughs yet. Expect bugs and please
@@ -29,6 +29,8 @@ PS3 layer.
 > ground no longer drop the frame rate), adds right stick sensitivity
 > settings, and X on the pause menu map sets a waypoint without closing
 > the map.
+> 1.2 alpha adds graphics options: mipmaps, texture filtering (bilinear,
+> trilinear, anisotropic) and antialiasing (2x/4x MSAA).
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
@@ -50,6 +52,17 @@ PlayStation button icons and the controller picture of the settings page).
   in `USRDIR/mp3`.
 - **Skins**: put `.bmp` skins in `USRDIR/skins`, choose them in *Player setup*.
 - *Display > Screen size* for overscan, FPS counter (*Graphics > Show FPS*).
+- *Options > Graphics*:
+  - **Mipmaps**: textures that come without smaller versions get them (less
+    shimmering in the distance). They are made as textures load: restart
+    the game (or travel) for all of them. Uses more video memory.
+  - **Texture filtering**: Default (the game's own), Bilinear, Trilinear,
+    Anisotropic 2x to 16x (sharper ground and roads at an angle). With
+    Mipmaps off, only the textures that have them in their TXD use them.
+  - **Antialiasing**: 2x or 4x MSAA (smoother edges). 4x costs the most
+    GPU time and ~22 MB more video memory: if the frame rate drops at
+    60 fps, use 2x.
+  All three are off/default unless you choose them.
 - DXT1 textures (most of the PC game's) are kept in 16 bits in video memory:
   half the VRAM, the same look.
 - Settings saved in `USRDIR` (`reVC.ini`, `gta_vc.set`), saves in
@@ -58,7 +71,7 @@ PlayStation button icons and the controller picture of the settings page).
 
 ## Installation
 
-1. Install `revc-ps3-1.1.2-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.2-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
@@ -134,7 +147,7 @@ On Linux or WSL (Ubuntu):
    make -C ps3 verify
    ```
 
-   The result is `ps3/revc-ps3-1.1.2-alpha.pkg`.
+   The result is `ps3/revc-ps3-1.2-alpha.pkg`.
 
 Other targets: `make -C ps3 DEBUG=1` (debug build with asserts),
 `make -C ps3 FTRACE=1` (function trace of peds, weapons, collision, HUD,
