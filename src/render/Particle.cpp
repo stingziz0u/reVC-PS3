@@ -901,7 +901,13 @@ CParticle *CParticle::AddParticle(tParticleType type, CVector const &vecPos, CVe
 		|| type == PARTICLE_BURNINGRUBBER_SMOKE
 		|| type == PARTICLE_EXHAUST_FUMES
 		|| type == PARTICLE_CARCOLLISION_DUST )
+#ifdef __PS3__
+		// these are added every frame and kept 1 frame in 2 (made for 30 fps);
+		// at 60 fps keep 1 in 4: the same number per second
+		&& (CTimer::GetTimeStep() < 0.75f ? nParticleCreationInterval * 2 + 1 : nParticleCreationInterval) & CTimer::GetFrameCounter() )
+#else
 		&& nParticleCreationInterval & CTimer::GetFrameCounter() )
+#endif
 	{
 		return nil;
 	}

@@ -2106,6 +2106,16 @@ CVehicle::HeliDustGenerate(CEntity *heli, float radius, float ground, int rnd)
 	if(heli == nil)
 		return;
 
+#ifdef __PS3__
+	// rnd = dust particles per frame, made for 30 fps (CHeli passes up to 14,
+	// more the shorter the frame). At 60 fps that is twice the particles per
+	// second, twice as many alive (the same lifetime) and twice the overdraw
+	// of big alpha sprites near the camera: 60 -> 30-45 fps with a heli near
+	// the ground (Demolition Man). Keep the 30 fps rate.
+	if(CTimer::GetTimeStep() < 1.0f)
+		rnd = Max(1, (int)(rnd * CTimer::GetTimeStep() + 0.5f));
+#endif
+
 	uint8 surface = SURFACE_TARMAC;
 	int frm = CTimer::GetFrameCounter() & 7;
 	float testLowZ = ground - 10.0f;
