@@ -69,6 +69,19 @@ PS3_LogShutdown(void)
 	log_unlock();
 }
 
+// flushes the log through lv2's cache to the disk (a forced power-off loses
+// what is only in the cache)
+extern "C" void
+PS3_LogSync(void)
+{
+	log_lock();
+	if (log_file) {
+		fflush(log_file);
+		fsync(fileno(log_file));
+	}
+	log_unlock();
+}
+
 static void
 log_write(const char *msg, int newline)
 {
@@ -425,7 +438,7 @@ PS3_InstallCrashHandler(void)
 // ---- hang watchdog ---------------------------------------------------------
 // A freeze (an endless loop, a wait that never ends) leaves no crash dump:
 // the game thread is still alive. This thread wakes up once a second; if the
-// game has run frames and then none for 20 s, it writes the same dump as a
+// game has run frames and then none for 10 s, it writes the same dump as a
 // crash ([hang] ...), once per freeze, and says when frames come back.
 static volatile int watchdogQuit;
 static sys_ppu_thread_t watchdogTid;
@@ -436,8 +449,13 @@ PS3_WatchdogThread(void *arg)
 	unsigned last = 0, still = 0;
 	int reported = 0;
 	(void)arg;
+	int tick = 0;
 	while (!watchdogQuit) {
 		usleep(1000000);
+		// the console may have to be switched off by force (a freeze that
+		// takes the system with it): get the log onto the disk every 5 s
+		if (++tick % 5 == 0)
+			PS3_LogSync();
 		unsigned f = PS3_crumbFrame;
 		if (f == 0 || f != last) {
 			if (reported)
@@ -447,10 +465,11 @@ PS3_WatchdogThread(void *arg)
 			reported = 0;
 			continue;
 		}
-		if (++still >= 20 && !reported && !watchdogQuit) {
+		if (++still >= 10 && !reported && !watchdogQuit) {
 			reported = 1;
 			PS3_Logf("[hang] no frame for %u s (stuck in frame %u); what the game thread was doing:", still, f);
 			PS3_DumpCrumbs();
+			PS3_LogSync();
 		}
 	}
 	sysThreadExit(0);
