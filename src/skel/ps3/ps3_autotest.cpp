@@ -40,6 +40,15 @@
 //   "mode=rain"  the rain effects one by one where the player stands
 //   "mode=gpu"   smoke / rain / ZCULL compared where the player stands, no
 //                60 fps cap
+//   "mode=stress" the heaviest the game gets, step by step, in Little Haiti
+//                (where Sir, Yes Sir slowed down): baseline, rain, hurricane,
+//                night, more traffic and peds, a riot with armed peds, cars
+//                blown up, wanted level 6 in a tank (police, FBI, army,
+//                helicopters), all of it at once, more peds and cars than
+//                the game allows, back to normal; then flights over the map
+//                in the rain (streaming). The same steps every time: compare
+//                the "[autotest]" and "[prof]" lines of two builds. The
+//                player can't die; everything is put back at the end.
 // Not automated: unique stunt jumps and store robberies (they need driving
 // and aiming), RC missions' vans.
 
@@ -93,6 +102,8 @@
 #include "Darkel.h"
 #include "Particle.h"
 #include "WaterLevel.h"
+#include "Population.h"
+#include "PedType.h"
 #include "main.h"
 
 #include "ps3_platform.h"
@@ -122,6 +133,18 @@ enum StepType {
 	ST_MISSION,	// a = mission script index: started (mission switcher), x seconds
 	ST_MISSIONEND,	// the running mission fails and cleans up
 	ST_PICKUP,	// a = PK_*: the player on it, x seconds
+	ST_STRESS,	// a = SF_* flags: that load, x seconds (mode=stress)
+};
+
+// mode=stress: what a step turns on (everything else is off / normal)
+enum {
+	SF_RAIN = 1, SF_HURRICANE = 2, SF_NIGHT = 4,
+	SF_DENSITY = 8,		// ped and car density x2 (up to the game's caps)
+	SF_RIOT = 16,		// every ped type hates every other (the mayhem cheat)
+	SF_ARMED = 32,		// peds get guns (the weapons-for-all cheat)
+	SF_EXPLODE = 64,	// 8 cars around the player, blown up one every 3 s
+	SF_WANTED = 128,	// wanted level 6, the player in a tank (bulletproof)
+	SF_CAPS = 256,		// the caps raised: 40 peds, 20 cars (game: 15 and 7)
 };
 
 enum { PK_PACKAGE, PK_RAMPAGE, PK_CLOTHES, PK_PROPERTY };
@@ -143,6 +166,7 @@ static int rainMode;		// autotest.txt "mode=rain": only the rain test, where the
 static int leakMode;		// "mode=leak": the same few actions over and over, heap logged at each
 static int gpuMode;		// "mode=gpu": smoke / rain / ZCULL compared where the player is, no 60 fps cap
 static int fullMode;		// "mode=full": every mission script, the odd jobs, one of each collectible
+static int stressMode;		// "mode=stress": the heaviest loads, one at a time, then all together
 static int fromMission = 0, toMission = -1;	// "from=N" / "to=N": a part of the missions only
 static float missionSecs = 30.0f;		// "secs=N"
 static int resumeOff;		// "resume=0": don't skip past a mission a previous run died in
@@ -539,6 +563,34 @@ static void buildPlan(void)
 		rw::ps3::setFlipVsync(false);
 		PS3_Logf("[autotest] plan: gpu test, %d steps, %d loops; tiling %s", numSteps, loops,
 		         rw::ps3::rsxTiling ? "on" : "OFF (notiles.txt)");
+		return;
+	}
+
+	if (stressMode) {
+		// Little Haiti: where Sir, Yes Sir dropped to 43 fps (patch 30 log)
+		addStep(ST_FLY, 0, 0, -1000.0f, 50.0f, "stress: fly to Little Haiti");
+		addStep(ST_STRESS, 0, 0, 20.0f, 0, "stress: sunny, noon (baseline)");
+		addStep(ST_STRESS, SF_RAIN, 0, 20.0f, 0, "stress: rain");
+		addStep(ST_STRESS, SF_HURRICANE, 0, 20.0f, 0, "stress: hurricane");
+		addStep(ST_STRESS, SF_NIGHT, 0, 20.0f, 0, "stress: night (lights, coronas)");
+		addStep(ST_STRESS, SF_DENSITY, 0, 30.0f, 0, "stress: traffic and peds x2");
+		addStep(ST_STRESS, SF_DENSITY | SF_RIOT | SF_ARMED, 0, 30.0f, 0, "stress: riot, armed peds");
+		addStep(ST_STRESS, SF_EXPLODE, 0, 30.0f, 0, "stress: 8 cars blown up");
+		addStep(ST_STRESS, SF_WANTED, 0, 40.0f, 0, "stress: wanted 6 in a tank");
+		addStep(ST_STRESS, SF_RAIN | SF_NIGHT | SF_DENSITY | SF_RIOT | SF_ARMED | SF_EXPLODE | SF_WANTED, 0, 45.0f, 0,
+		        "stress: all of it at once");
+		addStep(ST_STRESS, SF_CAPS | SF_DENSITY | SF_RIOT | SF_ARMED, 0, 30.0f, 0, "stress: 40 peds, 20 cars, riot");
+		addStep(ST_STRESS, 0, 0, 20.0f, 0, "stress: back to normal");
+		// streaming at car speed, in the rain
+		addStep(ST_STRESS, SF_RAIN, 0, 2.0f, 0, "stress: rain for the flights");
+		addStep(ST_FLY, 0, 0, -800.0f, 1100.0f, "stress: fly to Downtown (rain)");
+		addStep(ST_FLY, 0, 0, 420.0f, 1100.0f, "stress: fly to North Point Mall (rain)");
+		addStep(ST_FLY, 0, 0, 400.0f, -450.0f, "stress: fly to Washington Beach (rain)");
+		addStep(ST_FLY, 0, 0, 230.0f, -1270.0f, "stress: fly to Ocean View (rain)");
+		addStep(ST_STRESS, 0, 0, 10.0f, 0, "stress: sunny again");
+		addStep(ST_FLY, 0, 0, startPos.x, startPos.y, "stress: fly back to the start");
+		addStep(ST_LOOPEND, 0, 0, 0, 0, "end of loop");
+		PS3_Logf("[autotest] plan: stress test, %d steps, %d loops", numSteps, loops);
 		return;
 	}
 
@@ -1161,6 +1213,157 @@ static void runPickup(Step &s)
 	}
 }
 
+// ---- mode=stress ---------------------------------------------------------------------
+
+static bool stressSaved;
+static uint32 stressThreats[NUM_PEDTYPES];
+static int32 stressMaxPeds, stressMaxCars;
+static bool stressPedWeapons;
+#define STRESS_CARS 8
+static CVehicle *stressCars[STRESS_CARS];
+static int32 stressCarHandles[STRESS_CARS];
+static int stressNumCars, stressBlown;
+static uint64 stressLastUs;
+
+// what a step turns on; the rest back to the game's own values
+static void stressSet(int f)
+{
+	if (!stressSaved) {
+		for (int i = 0; i < NUM_PEDTYPES; i++)
+			stressThreats[i] = CPedType::GetThreats(i);
+		stressMaxPeds = CPopulation::MaxNumberOfPedsInUse;
+		stressMaxCars = CCarCtrl::MaxNumberOfCarsInUse;
+		stressPedWeapons = CPopulation::ms_bGivePedsWeapons;
+		stressSaved = true;
+	}
+	CWeather::ForceWeatherNow(f & SF_HURRICANE ? WEATHER_HURRICANE : f & SF_RAIN ? WEATHER_RAINY : WEATHER_SUNNY);
+	CClock::SetGameClock(f & SF_NIGHT ? 22 : 12, 0);
+	CPopulation::PedDensityMultiplier = f & SF_DENSITY ? 2.0f : 1.0f;
+	CCarCtrl::CarDensityMultiplier = f & SF_DENSITY ? 2.0f : 1.0f;
+	CPopulation::MaxNumberOfPedsInUse = f & SF_CAPS ? 40 : stressMaxPeds;
+	CCarCtrl::MaxNumberOfCarsInUse = f & SF_CAPS ? 20 : stressMaxCars;
+	for (int i = 0; i < NUM_PEDTYPES; i++)
+		CPedType::SetThreats(i, stressThreats[i]);
+	if (f & SF_RIOT)	// the mayhem cheat, without the cheat's marks
+		for (int i = PEDTYPE_CIVMALE; i < PEDTYPE_SPECIAL; i++)
+			CPedType::SetThreats(i, PED_FLAG_PLAYER1 | PED_FLAG_PLAYER2 | PED_FLAG_PLAYER3 | PED_FLAG_PLAYER4 |
+				PED_FLAG_CIVMALE | PED_FLAG_CIVFEMALE | PED_FLAG_COP | PED_FLAG_GANG1 |
+				PED_FLAG_GANG2 | PED_FLAG_GANG3 | PED_FLAG_GANG4 | PED_FLAG_GANG5 |
+				PED_FLAG_GANG6 | PED_FLAG_GANG7 | PED_FLAG_GANG8 | PED_FLAG_GANG9 |
+				PED_FLAG_EMERGENCY | PED_FLAG_PROSTITUTE | PED_FLAG_CRIMINAL | PED_FLAG_SPECIAL);
+	CPopulation::ms_bGivePedsWeapons = (f & SF_ARMED) ? true : stressPedWeapons;
+}
+
+static void stressRestore(void)
+{
+	if (!stressSaved)
+		return;
+	stressSet(0);
+	CPopulation::PedDensityMultiplier = 1.0f;
+	CCarCtrl::CarDensityMultiplier = 1.0f;
+	CPopulation::ms_bGivePedsWeapons = stressPedWeapons;
+	stressSaved = false;
+}
+
+static void stressDeleteCars(void)
+{
+	for (int i = 0; i < stressNumCars; i++) {
+		CVehicle *v = stressCars[i];
+		if (v && CPools::GetVehiclePool()->GetAt(stressCarHandles[i]) == v) {
+			CPlayerPed *p = FindPlayerPed();
+			if (p && p->bInVehicle && p->m_pMyVehicle == v)
+				continue;	// (the player got in one: leave it)
+			CWorld::Remove(v);
+			CWorld::RemoveReferencesToDeletedObject(v);
+			delete v;
+		}
+		stressCars[i] = nil;
+	}
+	stressNumCars = 0;
+}
+
+static void runStress(Step &s)
+{
+	CPlayerPed *p = FindPlayerPed();
+	if (p == nil) { finishStep("FAIL no player"); return; }
+	if (phase == 0) {
+		stressSet(s.a);
+		deleteTestCar();
+		stressDeleteCars();
+		if (!(s.a & SF_WANTED))
+			clearWanted();
+		CVector here = p->bInVehicle && p->m_pMyVehicle ? p->m_pMyVehicle->GetPosition() : p->GetPosition();
+		if (s.a & SF_WANTED) {
+			// in a tank, as in Sir, Yes Sir: they can't drag him out of it
+			CVector pos = here + CVector(4.0f, 0.0f, 0.0f);
+			bool found = false;
+			float gz = CWorld::FindGroundZFor3DCoord(pos.x, pos.y, pos.z + 10.0f, &found);
+			pos.z = found ? gz + 0.5f : here.z;
+			testCar = makeVehicle(MI_RHINO, pos, p->m_fRotationCur);
+			if (testCar) {
+				testCar->bBulletProof = testCar->bFireProof = testCar->bExplosionProof =
+					testCar->bCollisionProof = testCar->bMeleeProof = true;
+				warpIntoCar(testCar);
+			}
+			p->SetWantedLevel(6);
+		}
+		if (s.a & SF_EXPLODE) {
+			// 8 cars in a ring 14 m around, each blown up in turn
+			static const int models[4] = { MI_SENTINEL, MI_ADMIRAL, MI_STALLION, MI_IDAHO };
+			int32 keepHandle = testCarHandle;
+			for (int i = 0; i < STRESS_CARS; i++) {
+				float a = i * (TWOPI / STRESS_CARS);
+				CVector pos = here + CVector(14.0f * Cos(a), 14.0f * Sin(a), 0.0f);
+				bool found = false;
+				float gz = CWorld::FindGroundZFor3DCoord(pos.x, pos.y, here.z + 10.0f, &found);
+				if (!found || Abs(gz - here.z) > 6.0f)
+					continue;	// a wall, a roof, the water
+				pos.z = gz + 0.5f;
+				CVehicle *v = makeVehicle(models[i & 3], pos, a);
+				if (v) {
+					stressCars[stressNumCars] = v;
+					stressCarHandles[stressNumCars] = testCarHandle;
+					stressNumCars++;
+				}
+			}
+			testCarHandle = keepHandle;
+			stressBlown = 0;
+			PS3_Logf("[autotest]     %d cars to blow up", stressNumCars);
+		}
+		stressLastUs = nowUs();
+		nextPhase();
+		return;
+	}
+	// keeping it up
+	uint64 n = nowUs();
+	if (s.a & SF_WANTED) {
+		if (wantedLevel() < 6 && n - stressLastUs > 1000000) {
+			p->SetWantedLevel(6);
+			stressLastUs = n;
+		}
+		if (testCar && CPools::GetVehiclePool()->GetAt(testCarHandle) == testCar)
+			testCar->m_fHealth = 1000.0f;
+	}
+	if ((s.a & SF_EXPLODE) && stressBlown < stressNumCars && phaseSecs() > 2.0f + 3.0f * stressBlown) {
+		CVehicle *v = stressCars[stressBlown];
+		if (v && CPools::GetVehiclePool()->GetAt(stressCarHandles[stressBlown]) == v)
+			v->BlowUpCar(nil);
+		stressBlown++;
+	}
+	if (waited(s.x > 0.0f ? s.x : 20.0f)) {
+		PS3_Logf("[autotest]     wanted %d, peds %d (cap %d), cars %d (cap %d), weather %d, %02d:%02d",
+		         wantedLevel(), CPools::GetPedPool()->GetNoOfUsedSpaces(), CPopulation::MaxNumberOfPedsInUse,
+		         CPools::GetVehiclePool()->GetNoOfUsedSpaces(), CCarCtrl::MaxNumberOfCarsInUse,
+		         CWeather::NewWeatherType, CClock::GetHours(), CClock::GetMinutes());
+		stressDeleteCars();
+		if (s.a & SF_WANTED) {
+			deleteTestCar();
+			clearWanted();
+		}
+		finishStep("ok");
+	}
+}
+
 static void runLoopEnd(void)
 {
 	PS3_Logf("[autotest] ---- loop %d of %d done in %.1f min, %d failures so far ----",
@@ -1174,6 +1377,8 @@ static void runLoopEnd(void)
 static void finishRun(void)
 {
 	deleteTestCar();
+	stressDeleteCars();
+	stressRestore();
 	gPS3FxOff = 0;
 	rw::ps3::additiveKill = true;
 	rw::ps3::zcullOn = true;
@@ -1219,6 +1424,8 @@ static bool readConfig(void)
 			gpuMode = 1;
 		if (strncmp(line, "mode=full", 9) == 0)
 			fullMode = 1;
+		if (strncmp(line, "mode=stress", 11) == 0)
+			stressMode = 1;
 		if (sscanf(line, "from=%d", &v) == 1 && v >= 0)
 			fromMission = v;
 		if (sscanf(line, "to=%d", &v) == 1 && v >= 0)
@@ -1327,7 +1534,7 @@ PS3_AutotestFrameStep(void)
 	}
 
 	Step &s = steps[cur];
-	if (s.type != ST_GARAGE && s.type != ST_MISSION)
+	if (s.type != ST_GARAGE && s.type != ST_MISSION && !(s.type == ST_STRESS && (s.a & SF_WANTED)))
 		clearWanted();
 	switch (s.type) {
 	case ST_WEATHER: runWeather(s); break;
@@ -1340,6 +1547,7 @@ PS3_AutotestFrameStep(void)
 	case ST_MISSION: runMission(s); break;
 	case ST_MISSIONEND: runMissionEnd(s); break;
 	case ST_PICKUP: runPickup(s); break;
+	case ST_STRESS: runStress(s); break;
 	}
 
 	// the buttons, over what the real pad says

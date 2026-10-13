@@ -134,8 +134,11 @@ other games or platforms don't work.
   odd jobs, rampage, collectibles; it changes the game's progress and money,
   don't save after it; if the game dies in a mission, the next start goes on
   after it, `resume=0` turns that off), `mode=gpu` (GPU benchmark),
-  `mode=rain`, `mode=leak`. The file is renamed to `autotest.done.txt` when
-  the test ends.
+  `mode=rain`, `mode=leak`, `mode=stress` (the heaviest loads in Little
+  Haiti: rain, hurricane, night, traffic, a riot with armed peds, cars blown
+  up, wanted level 6 in a tank, all of it at once; then flights in the rain;
+  about 7 minutes). The file is renamed to `autotest.done.txt` when the test
+  ends.
 
 ## Building
 
