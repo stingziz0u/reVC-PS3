@@ -1306,6 +1306,9 @@ static void runStress(Step &s)
 				testCar->bBulletProof = testCar->bFireProof = testCar->bExplosionProof =
 					testCar->bCollisionProof = testCar->bMeleeProof = true;
 				warpIntoCar(testCar);
+				// locked: the police dragged him out and busted him (patch 34's
+				// run ended the step at the Little Havana police station)
+				testCar->m_nDoorLock = CARLOCK_LOCKED_PLAYER_INSIDE;
 			}
 			p->SetWantedLevel(6);
 		}

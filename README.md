@@ -125,7 +125,9 @@ other games or platforms don't work.
 - A black screen at start: create an empty `USRDIR/notiles.txt` (turns off
   the tiled buffers), and report it.
 - A texture that looks wrong: create an empty `USRDIR/dxt32.txt` (DXT1
-  textures back to 32 bits), and report it.
+  textures back to 32 bits), and report it. If that isn't it, an empty
+  `USRDIR/notexthread.txt` converts the textures on the game's own thread
+  again (they are converted on a second PPU thread), and report it.
 - `USRDIR/autotest.txt` runs an automatic test while you watch (load a save
   in a safehouse, with no mission running, and walk out: it starts 10 s
   after the player is outdoors, with a countdown on screen). One line in it chooses
