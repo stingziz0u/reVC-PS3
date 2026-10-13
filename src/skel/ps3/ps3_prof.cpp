@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 #include <sys/systime.h>
 
 #include "ps3_platform.h"
@@ -91,6 +92,111 @@ PS3_ProfEnd(const char *name)
 	}
 }
 
+// ---- steps inside CGame::Process / CWorld::Process (common.h) ----------------
+// One timebase read per step or entity; buckets found by the name's pointer
+// (string literals), logged sorted, every 10 s.
+#define PROF_GROUPS	3
+#define MAX_STEPS	80
+
+struct ProfStepBucket
+{
+	const char *name;
+	u64 ticks;
+	u32 count;
+};
+
+// the weather of the last frame (Game.cpp): rain costs particles and streaks
+float PS3_profRain;
+int PS3_profWeather;
+
+static ProfStepBucket stepBuckets[PROF_GROUPS][MAX_STEPS];
+static int numStepBuckets[PROF_GROUPS];
+static const char *stepCur[PROF_GROUPS];
+static u64 stepStart[PROF_GROUPS];
+
+static inline u64
+profTicks(void)
+{
+	u64 tb;
+	__asm__ volatile("mftb %0" : "=r"(tb));
+	return tb;
+}
+
+extern "C" void
+PS3_ProfAdd(int group, const char *name, unsigned long long ticks)
+{
+	if (group < 0 || group >= PROF_GROUPS || name == NULL)
+		return;
+	ProfStepBucket *b = stepBuckets[group];
+	int n = numStepBuckets[group];
+	for (int i = 0; i < n; i++)
+		if (b[i].name == name) {
+			b[i].ticks += ticks;
+			b[i].count++;
+			return;
+		}
+	if (n >= MAX_STEPS)
+		return;
+	b[n].name = name;
+	b[n].ticks = ticks;
+	b[n].count = 1;
+	numStepBuckets[group] = n + 1;
+}
+
+extern "C" void
+PS3_ProfStep(int group, const char *name)
+{
+	if (group < 0 || group >= PROF_GROUPS)
+		return;
+	u64 now = profTicks();
+	if (stepCur[group])
+		PS3_ProfAdd(group, stepCur[group], now - stepStart[group]);
+	stepCur[group] = name;
+	stepStart[group] = now;
+}
+
+static int
+CmpBucket(const void *a, const void *b)
+{
+	u64 x = ((const ProfStepBucket*)a)->ticks, y = ((const ProfStepBucket*)b)->ticks;
+	return x < y ? 1 : x > y ? -1 : 0;
+}
+
+// "[prof] game: ..." / "[prof] world: ...": the buckets of at least 0.05 ms
+// per frame, biggest first; with the times per frame after those that run
+// more than once a frame (entities)
+static void
+LogStepGroup(int group, const char *title, u32 nframes)
+{
+	static u64 freq;
+	if (freq == 0)
+		freq = sysGetTimebaseFrequency();
+	ProfStepBucket sorted[MAX_STEPS];
+	int n = numStepBuckets[group];
+	memcpy(sorted, stepBuckets[group], n * sizeof(ProfStepBucket));
+	qsort(sorted, n, sizeof(ProfStepBucket), CmpBucket);
+	char line[1024];
+	u64 total = 0;
+	for (int i = 0; i < n; i++)
+		total += sorted[i].ticks;
+	int len = snprintf(line, sizeof(line), "[prof] %s ms per frame:", title);
+	for (int i = 0; i < n && len < (int)sizeof(line) - 80; i++) {
+		double ms = sorted[i].ticks * 1000.0 / freq / nframes;
+		if (ms < 0.05)
+			break;
+		double per = (double)sorted[i].count / nframes;
+		if (per > 1.5)
+			len += snprintf(line + len, sizeof(line) - len, " | %s %.2f (x%.0f)", sorted[i].name, ms, per);
+		else
+			len += snprintf(line + len, sizeof(line) - len, " | %s %.2f", sorted[i].name, ms);
+	}
+	PS3_Log(line);
+	for (int i = 0; i < n; i++) {
+		stepBuckets[group][i].ticks = 0;
+		stepBuckets[group][i].count = 0;
+	}
+}
+
 // start of a frame (main.cpp's Idle)
 void
 PS3_ProfFrame(void)
@@ -115,6 +221,15 @@ PS3_ProfFrame(void)
 		timers[i].total = 0;
 	}
 	PS3_Log(line);
+	{
+		static const char *weathers[] = { "sunny", "cloudy", "rainy", "foggy", "extra sunny", "hurricane", "extra colours", "sunny and foggy" };
+		char title[96];
+		snprintf(title, sizeof(title), "game (CGame::Process; weather %s, rain %.2f)",
+		         PS3_profWeather >= 0 && PS3_profWeather < 8 ? weathers[PS3_profWeather] : "?", PS3_profRain);
+		LogStepGroup(0, title, frames);
+	}
+	LogStepGroup(1, "world (CWorld::Process; the checks are inside control peds)", frames);
+	LogStepGroup(2, "scene (RenderScene, RenderEffects)", frames);
 	PS3_LogMemTag("[mem] ");	// heap, free user memory, textures, streaming
 #if PS3_STAGE != 1
 	{

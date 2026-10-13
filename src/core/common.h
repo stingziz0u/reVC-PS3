@@ -85,10 +85,27 @@ static inline bool PS3_AngleOk(float &a) { if (!(a > -100000.0f && a < 100000.0f
 #define PS3_ANGLE_OK(a) PS3_AngleOk(a)
 // the address is where the current function was called from
 #define PS3_CRUMB_CALLER(tag, val) PS3_CrumbAt(tag, val, (unsigned)(uintptr_t)__builtin_return_address(0))
+// Where the CPU time inside CGame::Process and CWorld::Process goes
+// (ps3_prof.cpp, a "[prof] game:" and a "[prof] world:" line every 10 s).
+// A step of a group lasts until the group's next step (nil: the end); the
+// time of an entity's work is added to a bucket with PS3_ProfAdd. Ticks are
+// the timebase's (mftb: no system call).
+extern "C" void PS3_ProfStep(int group, const char *name);
+extern "C" void PS3_ProfAdd(int group, const char *name, unsigned long long ticks);
+static inline unsigned long long PS3_Ticks(void) { unsigned long long t; __asm__ volatile("mftb %0" : "=r"(t)); return t; }
+#define PS3_PROF_GAME	0
+#define PS3_PROF_WORLD	1
+#define PS3_PROF_SCENE	2
+#define PS3_GAME_STEP(tag) do { PS3_Crumb(tag, 0); PS3_ProfStep(PS3_PROF_GAME, tag); } while (0)
+#define PS3_SCENE_STEP(tag) PS3_ProfStep(PS3_PROF_SCENE, tag)
+#define PS3_FX_STEP(tag) do { PS3_Crumb(tag, 0); PS3_ProfStep(PS3_PROF_SCENE, tag); } while (0)
 #else
 #define PS3_CRUMB(tag, val)
 #define PS3_CRUMB_CALLER(tag, val)
 #define PS3_ANGLE_OK(a) true
+#define PS3_GAME_STEP(tag)
+#define PS3_SCENE_STEP(tag)
+#define PS3_FX_STEP(tag)
 #endif
 
 // gotta put this somewhere

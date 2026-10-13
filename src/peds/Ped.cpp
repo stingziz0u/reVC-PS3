@@ -1753,6 +1753,7 @@ PS3_LogStale(CPed *ped, const char *name, const void *p, int where)
 void
 PS3_CheckPedPointers(CPed *ped, int where)
 {
+	unsigned long long ps3t0 = PS3_Ticks();
 #define PS3_CHECK_PTR(m, live) \
 	if (ped->m && !live(ped->m)) { \
 		PS3_LogStale(ped, #m, ped->m, where); \
@@ -1814,6 +1815,7 @@ PS3_CheckPedPointers(CPed *ped, int where)
 		ped->m_attractor = nil;
 		ped->m_positionInQueue = -1;
 	}
+	PS3_ProfAdd(PS3_PROF_WORLD, "ped pointer checks (in control peds)", PS3_Ticks() - ps3t0);
 }
 
 // where in ProcessControl a ped is (crumbs: value = line in Ped.cpp)
@@ -1904,7 +1906,11 @@ CPed::ProcessControl(void)
 
 #ifdef __PS3__
 	PS3_CheckPedPointers(this, 0);
-	PS3_CheckPedSkeleton(this);
+	{
+		unsigned long long ps3t0 = PS3_Ticks();
+		PS3_CheckPedSkeleton(this);
+		PS3_ProfAdd(PS3_PROF_WORLD, "ped skeleton check (in control peds)", PS3_Ticks() - ps3t0);
+	}
 #endif
 
 	if (CTimer::GetFrameCounter() + m_randomSeed % 32 == 0)

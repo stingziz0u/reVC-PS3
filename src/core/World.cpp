@@ -28,8 +28,18 @@
 extern CEntity *PS3_curEntity;
 extern const char *PS3_curEntityStep;
 #define PS3_CUR_ENTITY(e, step) (PS3_curEntity = (e), PS3_curEntityStep = (step))
+// CPU time of each entity's animations and ProcessControl, by kind ([prof] world:)
+static const char *ps3AnimNames[] = { "anims peds", "anims vehicles", "anims objects", "anims other" };
+static const char *ps3ControlNames[] = { "control peds", "control vehicles", "control objects", "control other" };
+static inline int PS3_EntKind(CEntity *e) { return e->IsPed() ? 0 : e->IsVehicle() ? 1 : e->IsObject() ? 2 : 3; }
+#define PS3_ENT_T0() unsigned long long ps3t0 = PS3_Ticks()
+#define PS3_ENT_ADD(names, e) PS3_ProfAdd(PS3_PROF_WORLD, names[PS3_EntKind(e)], PS3_Ticks() - ps3t0)
+#define PS3_WORLD_STEP(name) PS3_ProfStep(PS3_PROF_WORLD, name)
 #else
 #define PS3_CUR_ENTITY(e, step)
+#define PS3_ENT_T0()
+#define PS3_ENT_ADD(names, e)
+#define PS3_WORLD_STEP(name)
 #endif
 
 #define OBJECT_REPOSITION_OFFSET_Z 2.0f
@@ -1960,6 +1970,7 @@ CWorld::Process(void)
 			   RpAnimBlendClumpGetFirstAssociation(movingEnt->GetClump())) {
 				PS3_CRUMB("world: anims model|type<<16", movingEnt->GetModelIndex() | movingEnt->GetType()<<16);
 				PS3_CUR_ENTITY(movingEnt, "animations");
+				PS3_ENT_T0();
 				if (movingEnt->IsObject())
 					RpAnimBlendClumpUpdateAnimations(movingEnt->GetClump(), CTimer::GetTimeStepNonClippedInSeconds());
 				else {
@@ -1967,6 +1978,7 @@ CWorld::Process(void)
 						movingEnt->bOffscreen = !movingEnt->GetIsOnScreen();
 					RpAnimBlendClumpUpdateAnimations(movingEnt->GetClump(), CTimer::GetTimeStepInSeconds(), !movingEnt->bOffscreen);
 				}
+				PS3_ENT_ADD(ps3AnimNames, movingEnt);
 			}
 		}
 		for(CPtrNode *node = ms_listMovingEntityPtrs.first; node; node = node->next) {
@@ -1978,7 +1990,9 @@ CWorld::Process(void)
 			} else {
 				PS3_CRUMB("world: ProcessControl model|type<<16", movingEnt->GetModelIndex() | movingEnt->GetType()<<16);
 				PS3_CUR_ENTITY(movingEnt, "ProcessControl");
+				PS3_ENT_T0();
 				movingEnt->ProcessControl();
+				PS3_ENT_ADD(ps3ControlNames, movingEnt);
 				if(movingEnt->GetIsStatic()) { movingEnt->RemoveFromMovingList(); }
 			}
 		}
@@ -1991,7 +2005,9 @@ CWorld::Process(void)
 				} else {
 					PS3_CRUMB("world: ProcessControl (postponed) model", movingEnt->GetModelIndex());
 					PS3_CUR_ENTITY(movingEnt, "ProcessControl");
+					PS3_ENT_T0();
 					movingEnt->ProcessControl();
+					PS3_ENT_ADD(ps3ControlNames, movingEnt);
 					if(movingEnt->GetIsStatic()) { movingEnt->RemoveFromMovingList(); }
 				}
 			}
@@ -2005,6 +2021,7 @@ CWorld::Process(void)
 				movingEnt->UpdateRwFrame();
 			}
 		} else {
+			PS3_WORLD_STEP("collision");
 			bNoMoreCollisionTorque = false;
 			for(CPtrNode *node = ms_listMovingEntityPtrs.first; node; node = node->next) {
 				CEntity *movingEnt = (CEntity *)node->item;
@@ -2041,6 +2058,7 @@ CWorld::Process(void)
 					if(!movingEnt->bIsInSafePosition) { movingEnt->bIsStuck = true; }
 				}
 			}
+			PS3_WORLD_STEP("shift");
 			bSecondShift = false;
 			for(CPtrNode *node = ms_listMovingEntityPtrs.first; node; node = node->next) {
 				CEntity *movingEnt = (CEntity *)node->item;
@@ -2074,6 +2092,7 @@ CWorld::Process(void)
 				}
 			}
 		}
+		PS3_WORLD_STEP("peds in vehicles");
 		for(CPtrNode *node = ms_listMovingEntityPtrs.first; node; node = node->next) {
 			CPed *movingPed = (CPed *)node->item;
 			if(movingPed->IsPed()) {
@@ -2117,6 +2136,7 @@ CWorld::Process(void)
 			}
 		}
 		PS3_CUR_ENTITY(nil, "");
+		PS3_WORLD_STEP("messages, player, fallen");
 		CMessages::Process();
 		Players[PlayerInFocus].Process();
 		CRecordDataForChase::SaveOrRetrieveCarPositions();
@@ -2125,6 +2145,7 @@ CWorld::Process(void)
 		} else if((CTimer::GetFrameCounter() & 7) == 5) {
 			RemoveFallenCars();
 		}
+		PS3_WORLD_STEP(nil);
 	}
 }
 

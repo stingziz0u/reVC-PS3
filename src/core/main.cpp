@@ -1361,21 +1361,28 @@ RenderScene(void)
 		return;
 	}
 #endif
+	PS3_SCENE_STEP("clouds, horizon");
 	CClouds::Render();
 	DoRWRenderHorizon();
+	PS3_SCENE_STEP("roads");
 	CRenderer::RenderRoads();
 	CCoronas::RenderReflections();
+	PS3_SCENE_STEP("everything bar roads");
 	CRenderer::RenderEverythingBarRoads();
 	RwRenderStateSet(rwRENDERSTATECULLMODE, (void*)rwCULLMODECULLNONE);
+	PS3_SCENE_STEP("water, boats");
 	CWaterLevel::RenderWater();
 	CRenderer::RenderBoats();
 	CRenderer::RenderFadingInUnderwaterEntities();
 	RwRenderStateSet(rwRENDERSTATECULLMODE, (void*)rwCULLMODECULLNONE);
 	CWaterLevel::RenderTransparentWater();
+	PS3_SCENE_STEP("fading in");
 	CRenderer::RenderFadingInEntities();
 	RwRenderStateSet(rwRENDERSTATECULLMODE, (void*)rwCULLMODECULLNONE);
+	PS3_SCENE_STEP("rain streaks");
 	CWeather::RenderRainStreaks();
 	CCoronas::RenderSunReflection();
+	PS3_SCENE_STEP(nil);
 }
 
 void
@@ -1400,38 +1407,39 @@ RenderEffects(void)
 		return;
 	}
 #endif
-	PS3_CRUMB("fx: CGlass::Render", 0);
+	PS3_FX_STEP("fx: CGlass::Render");
 	CGlass::Render();
-	PS3_CRUMB("fx: CWaterCannons::Render", 0);
+	PS3_FX_STEP("fx: CWaterCannons::Render");
 	CWaterCannons::Render();
-	PS3_CRUMB("fx: CSpecialFX::Render", 0);
+	PS3_FX_STEP("fx: CSpecialFX::Render");
 	CSpecialFX::Render();
-	PS3_CRUMB("fx: CRopes::Render", 0);
+	PS3_FX_STEP("fx: CRopes::Render");
 	CRopes::Render();
-	PS3_CRUMB("fx: CShadows::RenderStaticShadows", 0);
+	PS3_FX_STEP("fx: CShadows::RenderStaticShadows");
 	CShadows::RenderStaticShadows();
-	PS3_CRUMB("fx: CShadows::RenderStoredShadows", 0);
+	PS3_FX_STEP("fx: CShadows::RenderStoredShadows");
 	CShadows::RenderStoredShadows();
-	PS3_CRUMB("fx: CSkidmarks::Render", 0);
+	PS3_FX_STEP("fx: CSkidmarks::Render");
 	CSkidmarks::Render();
-	PS3_CRUMB("fx: CAntennas::Render", 0);
+	PS3_FX_STEP("fx: CAntennas::Render");
 	CAntennas::Render();
-	PS3_CRUMB("fx: CRubbish::Render", 0);
+	PS3_FX_STEP("fx: CRubbish::Render");
 	CRubbish::Render();
-	PS3_CRUMB("fx: CCoronas::Render", 0);
+	PS3_FX_STEP("fx: CCoronas::Render");
 	CCoronas::Render();
-	PS3_CRUMB("fx: CParticle::Render", 0);
+	PS3_FX_STEP("fx: CParticle::Render");
 	CParticle::Render();
-	PS3_CRUMB("fx: CPacManPickups::Render", 0);
+	PS3_FX_STEP("fx: CPacManPickups::Render");
 	CPacManPickups::Render();
-	PS3_CRUMB("fx: CWeaponEffects::Render", 0);
+	PS3_FX_STEP("fx: CWeaponEffects::Render");
 	CWeaponEffects::Render();
-	PS3_CRUMB("fx: CPointLights::RenderFogEffect", 0);
+	PS3_FX_STEP("fx: CPointLights::RenderFogEffect");
 	CPointLights::RenderFogEffect();
-	PS3_CRUMB("fx: CMovingThings::Render", 0);
+	PS3_FX_STEP("fx: CMovingThings::Render");
 	CMovingThings::Render();
-	PS3_CRUMB("fx: CRenderer::RenderFirstPersonVehicle", 0);
+	PS3_FX_STEP("fx: CRenderer::RenderFirstPersonVehicle");
 	CRenderer::RenderFirstPersonVehicle();
+	PS3_SCENE_STEP(nil);
 }
 
 void
