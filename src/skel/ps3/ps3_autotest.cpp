@@ -104,6 +104,8 @@
 #include "WaterLevel.h"
 #include "Population.h"
 #include "PedType.h"
+#include "Hud.h"
+#include "Font.h"
 #include "main.h"
 
 #include "ps3_platform.h"
@@ -1494,13 +1496,54 @@ PS3_AutotestFrameStep(void)
 		return;
 
 	if (state == 1) {
-		if (!canStart())
+		// 10 s outdoors before it starts: a safehouse is an interior (the
+		// hotel), and a flight from there leaves the world unloaded
+		static uint64 countdownUs;
+		static int shown = -1;
+		if (!canStart()) {
+			countdownUs = 0;
 			return;
+		}
 		if (CTheScripts::IsPlayerOnAMission()) {
 			static int warned;
 			if (!warned++)
 				PS3_Log("[autotest] waiting: a mission is running (load a save in a safehouse)");
+			countdownUs = 0;
 			return;
+		}
+		if (CGame::IsInInterior()) {
+			static int warned;
+			if (!warned++)
+				PS3_Logf("[autotest] waiting: the player is indoors (area %d): walk him out", CGame::currArea);
+			if (countdownUs || shown != 99) {
+				wchar msg[64];
+				AsciiToUnicode("AUTOTEST: WALK OUTSIDE, IT STARTS 10 S LATER", msg);
+				CHud::SetHelpMessage(msg, true);
+				shown = 99;
+			}
+			countdownUs = 0;
+			return;
+		}
+		if (countdownUs == 0) {
+			countdownUs = nowUs();
+			shown = -1;
+			PS3_Log("[autotest] outdoors: the test starts in 10 s");
+		}
+		int left = 10 - (int)((nowUs() - countdownUs) / 1000000);
+		if (left > 0) {
+			if (left != shown) {
+				char a[48];
+				wchar msg[48];
+				snprintf(a, sizeof(a), "AUTOTEST STARTS IN %d S", left);
+				AsciiToUnicode(a, msg);
+				CHud::SetHelpMessage(msg, true);
+				shown = left;
+			}
+			return;
+		}
+		{
+			wchar none[1] = { 0 };
+			CHud::SetHelpMessage(none, true);
 		}
 		CPlayerPed *p = FindPlayerPed();
 		startPos = p->GetPosition();

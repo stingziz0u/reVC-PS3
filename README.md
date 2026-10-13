@@ -127,7 +127,8 @@ other games or platforms don't work.
 - A texture that looks wrong: create an empty `USRDIR/dxt32.txt` (DXT1
   textures back to 32 bits), and report it.
 - `USRDIR/autotest.txt` runs an automatic test while you watch (load a save
-  in a safehouse, with no mission running, first). One line in it chooses
+  in a safehouse, with no mission running, and walk out: it starts 10 s
+  after the player is outdoors, with a countdown on screen). One line in it chooses
   the test: nothing (weather, a flight over the map, save/load, a car, a
   bike, a helicopter and a boat, side missions, garages; `loops=N` repeats
   it), `mode=full` (every mission 30 s — `secs=N`, `from=N`, `to=N` —
