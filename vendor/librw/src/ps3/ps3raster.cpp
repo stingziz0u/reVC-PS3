@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <math.h>
 
 #include "../rwbase.h"
 #include "../rwerror.h"
@@ -1220,21 +1219,26 @@ pack565(uint32 r, uint32 g, uint32 b)
 }
 
 // 16 texels (PACK_RGBA words, row by row) into a colour block (8 bytes, the
-// PC's byte order). The endpoints: the two texels furthest apart along the
-// main axis of the colours (a few power iterations of their covariance, as
-// stb_dxt). dxt1: texels with alpha < 128 become the transparent index of
-// the 3 colour mode; DXT3/5 always get the 4 colour mode.
+// PC's byte order). All in integers: the PPU moves a value between its
+// integer and float registers through memory (a load-hit-store stall each
+// time), and patch 41's float version spent ~25000 cycles a block. The
+// endpoints: the corners of the colours' box on the diagonal that follows
+// them (the signs of the covariance with the channel that varies most),
+// pulled in by 1/16 of the box (van Waveren's real-time DXT). The indices:
+// each texel's position along the line between the two endpoints as the
+// decoder makes them. dxt1: texels with alpha < 128 get the transparent
+// index of the 3 colour mode; DXT3/5 always the 4 colour mode.
 static void
 encodeColorBlock(const uint32 *t, bool dxt1, uint8 *out)
 {
 	int32 cr[16], cg[16], cb[16], n = 0;
-	bool transparent = false;
+	uint32 opaque = 0;	// bit k: texel k has a colour (not transparent)
 	for(int32 k = 0; k < 16; k++){
-		if(dxt1 && RGBA_A(t[k]) < 128){
-			transparent = true;
+		uint32 v = t[k];
+		if(dxt1 && RGBA_A(v) < 128)
 			continue;
-		}
-		cr[n] = RGBA_R(t[k]); cg[n] = RGBA_G(t[k]); cb[n] = RGBA_B(t[k]);
+		opaque |= 1u << k;
+		cr[n] = RGBA_R(v); cg[n] = RGBA_G(v); cb[n] = RGBA_B(v);
 		n++;
 	}
 	if(n == 0){
@@ -1243,84 +1247,79 @@ encodeColorBlock(const uint32 *t, bool dxt1, uint8 *out)
 		out[4] = out[5] = out[6] = out[7] = 0xFF;
 		return;
 	}
-	// mean, covariance, extent
-	int32 mr = 0, mg = 0, mb = 0;
+	bool three = n < 16;
 	int32 rmin = 255, gmin = 255, bmin = 255, rmax = 0, gmax = 0, bmax = 0;
+	int32 sr = 0, sg = 0, sb = 0;
 	for(int32 i = 0; i < n; i++){
-		mr += cr[i]; mg += cg[i]; mb += cb[i];
-		if(cr[i] < rmin) rmin = cr[i]; if(cr[i] > rmax) rmax = cr[i];
-		if(cg[i] < gmin) gmin = cg[i]; if(cg[i] > gmax) gmax = cg[i];
-		if(cb[i] < bmin) bmin = cb[i]; if(cb[i] > bmax) bmax = cb[i];
+		int32 r = cr[i], g = cg[i], b = cb[i];
+		sr += r; sg += g; sb += b;
+		rmin = r < rmin ? r : rmin; rmax = r > rmax ? r : rmax;
+		gmin = g < gmin ? g : gmin; gmax = g > gmax ? g : gmax;
+		bmin = b < bmin ? b : bmin; bmax = b > bmax ? b : bmax;
 	}
-	mr = (mr + n/2)/n; mg = (mg + n/2)/n; mb = (mb + n/2)/n;
-	int32 lo = 0, hi = 0;
-	if(rmax != rmin || gmax != gmin || bmax != bmin){
-		float c[6] = { 0, 0, 0, 0, 0, 0 };
-		for(int32 i = 0; i < n; i++){
-			float r = cr[i] - mr, g = cg[i] - mg, b = cb[i] - mb;
-			c[0] += r*r; c[1] += r*g; c[2] += r*b;
-			c[3] += g*g; c[4] += g*b; c[5] += b*b;
-		}
-		float vr = rmax - rmin, vg = gmax - gmin, vb = bmax - bmin;
-		for(int32 it = 0; it < 4; it++){
-			float r = vr*c[0] + vg*c[1] + vb*c[2];
-			float g = vr*c[1] + vg*c[3] + vb*c[4];
-			float b = vr*c[2] + vg*c[4] + vb*c[5];
-			float m = fabsf(r);
-			if(fabsf(g) > m) m = fabsf(g);
-			if(fabsf(b) > m) m = fabsf(b);
-			if(m < 1e-6f)
-				break;
-			vr = r/m; vg = g/m; vb = b/m;
-		}
-		float m = fabsf(vr);
-		if(fabsf(vg) > m) m = fabsf(vg);
-		if(fabsf(vb) > m) m = fabsf(vb);
-		if(m < 1e-6f){ vr = 0.299f; vg = 0.587f; vb = 0.114f; }	// no main axis: luminance
-		float dmin = 1e30f, dmax = -1e30f;
-		for(int32 i = 0; i < n; i++){
-			float d = cr[i]*vr + cg[i]*vg + cb[i]*vb;
-			if(d < dmin){ dmin = d; lo = i; }
-			if(d > dmax){ dmax = d; hi = i; }
-		}
+	// covariances, centred values scaled by n (no division)
+	int32 vrr = 0, vgg = 0, vbb = 0, vrg = 0, vrb = 0, vgb = 0;
+	for(int32 i = 0; i < n; i++){
+		int32 r = cr[i]*n - sr, g = cg[i]*n - sg, b = cb[i]*n - sb;
+		r >>= 4; g >>= 4; b >>= 4;	// |x| < 4096: the sums fit 32 bits
+		vrr += r*r; vgg += g*g; vbb += b*b;
+		vrg += r*g; vrb += r*b; vgb += g*b;
 	}
-	uint32 c0 = pack565(cr[hi], cg[hi], cb[hi]);
-	uint32 c1 = pack565(cr[lo], cg[lo], cb[lo]);
-	bool three = transparent;
+	// the diagonal: against the channel that varies most, a channel that
+	// goes the other way has its ends swapped
+	int32 hr = rmax, hg = gmax, hb = bmax, lr = rmin, lg = gmin, lb = bmin;
+	int32 sgnG, sgnB, sgnR;
+	if(vrr >= vgg && vrr >= vbb){ sgnR = 1; sgnG = vrg; sgnB = vrb; }
+	else if(vgg >= vbb){ sgnG = 1; sgnR = vrg; sgnB = vgb; }
+	else{ sgnB = 1; sgnR = vrb; sgnG = vgb; }
+	if(sgnR < 0){ hr = rmin; lr = rmax; }
+	if(sgnG < 0){ hg = gmin; lg = gmax; }
+	if(sgnB < 0){ hb = bmin; lb = bmax; }
+	// pulled in by 1/16 of the box
+	int32 ir = (rmax - rmin) >> 4, ig = (gmax - gmin) >> 4, ib = (bmax - bmin) >> 4;
+	hr += hr > lr ? -ir : ir; lr += hr > lr ? ir : -ir;
+	hg += hg > lg ? -ig : ig; lg += hg > lg ? ig : -ig;
+	hb += hb > lb ? -ib : ib; lb += hb > lb ? ib : -ib;
+	uint32 c0 = pack565(hr, hg, hb);
+	uint32 c1 = pack565(lr, lg, lb);
 	if(three){
 		if(c0 > c1){ uint32 x = c0; c0 = c1; c1 = x; }	// c0 <= c1: 3 colour mode
 	}else{
 		if(c0 < c1){ uint32 x = c0; c0 = c1; c1 = x; }	// c0 > c1: 4 colour mode
-		if(c0 == c1){
-			// one colour: index 0 everywhere (the same in both modes)
-			out[0] = c0 & 0xFF; out[1] = c0 >> 8; out[2] = c1 & 0xFF; out[3] = c1 >> 8;
-			out[4] = out[5] = out[6] = out[7] = 0;
-			return;
-		}
 	}
-	// the palette the decoder makes from them
-	int32 pr[4], pg[4], pb[4];
-	pr[0] = expand5[(c0>>11) & 0x1F]; pg[0] = expand6[(c0>>5) & 0x3F]; pb[0] = expand5[c0 & 0x1F];
-	pr[1] = expand5[(c1>>11) & 0x1F]; pg[1] = expand6[(c1>>5) & 0x3F]; pb[1] = expand5[c1 & 0x1F];
-	int32 np;
-	if(three){
-		pr[2] = (pr[0] + pr[1])/2; pg[2] = (pg[0] + pg[1])/2; pb[2] = (pb[0] + pb[1])/2;
-		np = 3;
-	}else{
-		pr[2] = third(2*pr[0] + pr[1]); pg[2] = third(2*pg[0] + pg[1]); pb[2] = third(2*pb[0] + pb[1]);
-		pr[3] = third(pr[0] + 2*pr[1]); pg[3] = third(pg[0] + 2*pg[1]); pb[3] = third(pb[0] + 2*pb[1]);
-		np = 4;
+	if(c0 == c1){
+		// one colour: index 0 everywhere (the same in both modes), 3 if transparent
+		uint32 idx = 0;
+		for(int32 k = 0; k < 16; k++)
+			if(!(opaque & (1u << k)))
+				idx |= 3u << (2*k);
+		out[0] = c0 & 0xFF; out[1] = c0 >> 8; out[2] = c1 & 0xFF; out[3] = c1 >> 8;
+		out[4] = idx & 0xFF; out[5] = (idx >> 8) & 0xFF; out[6] = (idx >> 16) & 0xFF; out[7] = idx >> 24;
+		return;
 	}
+	// the endpoints as the decoder expands them, and the line between them
+	int32 r0 = expand5[(c0>>11) & 0x1F], g0 = expand6[(c0>>5) & 0x3F], b0 = expand5[c0 & 0x1F];
+	int32 r1 = expand5[(c1>>11) & 0x1F], g1 = expand6[(c1>>5) & 0x3F], b1 = expand5[c1 & 0x1F];
+	int32 dr = r1 - r0, dg = g1 - g0, db = b1 - b0;
+	int32 len = dr*dr + dg*dg + db*db;	// > 0: c0 != c1
+	// the position f = dot/len (0 at c0, 1 at c1) picks the index:
+	// 4 colours: c0 | 2/3 c0 + 1/3 c1 | 1/3 c0 + 2/3 c1 | c1 = 0 2 3 1,
+	// borders at 1/6, 3/6, 5/6; 3 colours: c0 | half | c1 = 0 2 1, at 1/4, 3/4
 	uint32 idx = 0;
+	int32 m = 0;
 	for(int32 k = 0; k < 16; k++){
-		uint32 best = 3;
-		if(!(three && RGBA_A(t[k]) < 128)){
-			int32 r = RGBA_R(t[k]), g = RGBA_G(t[k]), b = RGBA_B(t[k]);
-			int32 bd = 0x7FFFFFFF;
-			for(int32 i = 0; i < np; i++){
-				int32 dr = r - pr[i], dg = g - pg[i], db = b - pb[i];
-				int32 d = dr*dr + dg*dg + db*db;
-				if(d < bd){ bd = d; best = i; }
+		uint32 best;
+		if(!(opaque & (1u << k)))
+			best = 3;
+		else{
+			int32 dot = (cr[m] - r0)*dr + (cg[m] - g0)*dg + (cb[m] - b0)*db;
+			m++;
+			if(three){
+				int32 f = dot*4;	// in quarters of len
+				best = f < len ? 0 : f < 3*len ? 2 : 1;
+			}else{
+				int32 f = dot*6;	// in sixths of len
+				best = f < len ? 0 : f < 3*len ? 2 : f < 5*len ? 3 : 1;
 			}
 		}
 		idx |= best << (2*k);
@@ -1330,30 +1329,27 @@ encodeColorBlock(const uint32 *t, bool dxt1, uint8 *out)
 }
 
 // DXT5 alpha block: the 8 alpha mode between the largest and smallest
+// (index 0 the largest, 1 the smallest, 2-7 the steps between, as a
+// position along the range: one division a block)
 static void
 encodeAlpha5(const uint32 *t, uint8 *out)
 {
 	int32 amin = 255, amax = 0;
 	for(int32 k = 0; k < 16; k++){
 		int32 a = RGBA_A(t[k]);
-		if(a < amin) amin = a;
-		if(a > amax) amax = a;
+		amin = a < amin ? a : amin;
+		amax = a > amax ? a : amax;
 	}
 	out[0] = amax;
 	out[1] = amin;
 	uint64 bits = 0;
-	if(amax != amin){
-		int32 pal[8];
-		pal[0] = amax; pal[1] = amin;
-		for(int32 i = 1; i < 7; i++)
-			pal[i+1] = ((7-i)*amax + i*amin) / 7;
+	int32 range = amax - amin;
+	if(range > 0){
+		int32 inv = (7 << 16) / range;
 		for(int32 k = 0; k < 16; k++){
-			int32 a = RGBA_A(t[k]), best = 0, bd = 1 << 30;
-			for(int32 i = 0; i < 8; i++){
-				int32 d = (a - pal[i])*(a - pal[i]);
-				if(d < bd){ bd = d; best = i; }
-			}
-			bits |= (uint64)best << (3*k);
+			int32 s = ((amax - RGBA_A(t[k]))*inv + 0x8000) >> 16;	// 0 (amax) .. 7 (amin)
+			uint32 i = s == 0 ? 0 : s == 7 ? 1 : s + 1;
+			bits |= (uint64)i << (3*k);
 		}
 	}
 	for(int32 i = 0; i < 6; i++)
@@ -1364,10 +1360,14 @@ encodeAlpha5(const uint32 *t, uint8 *out)
 static void
 encodeAlpha3(const uint32 *t, uint8 *out)
 {
-	memset(out, 0, 8);
-	for(int32 k = 0; k < 16; k++){
-		uint32 a4 = (RGBA_A(t[k])*15 + 127) / 255;
-		out[k >> 1] |= a4 << ((k & 1)*4);
+	uint32 lo = 0, hi = 0;
+	for(int32 k = 0; k < 8; k++){
+		lo |= ((RGBA_A(t[k])*15 + 127) / 255) << (4*k);
+		hi |= ((RGBA_A(t[k+8])*15 + 127) / 255) << (4*k);
+	}
+	for(int32 i = 0; i < 4; i++){
+		out[i] = lo >> (8*i);
+		out[4+i] = hi >> (8*i);
 	}
 }
 
@@ -1378,17 +1378,22 @@ encodeDXT(int32 dxt, const uint8 *rgba, int32 w, int32 h, uint8 *out)
 	dxtExpandInit();
 	const uint32 *px = (const uint32*)rgba;
 	int32 bw = (w + 3)/4, bh = (h + 3)/4;
-	if(bw == 0) bw = 1;
-	if(bh == 0) bh = 1;
 	uint32 t[16];
 	for(int32 by = 0; by < bh; by++)
 		for(int32 bx = 0; bx < bw; bx++){
-			for(int32 k = 0; k < 16; k++){
-				int32 x = bx*4 + (k & 3), y = by*4 + (k >> 2);
-				if(x >= w) x = w - 1;
-				if(y >= h) y = h - 1;
-				t[k] = px[y*w + x];
-			}
+			if(w >= 4 && h >= 4){
+				const uint32 *s = px + by*4*w + bx*4;
+				for(int32 y = 0; y < 4; y++, s += w){
+					t[y*4] = s[0]; t[y*4+1] = s[1]; t[y*4+2] = s[2]; t[y*4+3] = s[3];
+				}
+			}else
+				// smaller than a block: the edge texels repeated
+				for(int32 k = 0; k < 16; k++){
+					int32 x = bx*4 + (k & 3), y = by*4 + (k >> 2);
+					if(x >= w) x = w - 1;
+					if(y >= h) y = h - 1;
+					t[k] = px[y*w + x];
+				}
 			if(dxt == 1){
 				encodeColorBlock(t, true, out);
 				out += 8;
