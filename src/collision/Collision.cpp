@@ -76,7 +76,7 @@ CLinkList<CColModel*> CCollision::ms_colModelCache;
 // (World.cpp): ProcessColModels (sphere/box/line vs triangles), and the
 // triangle planes computed when a col model isn't in the plane cache
 int32 PS3_colCacheUsed;			// links in ms_colModelCache
-int32 PS3_colCacheLimit = NUMCOLCACHELINKS;
+int32 PS3_colCacheLimit = NUMCOLCACHELINKS;	// below the list's size, to try smaller caches
 unsigned long long PS3_colModelsTicks, PS3_colPlaneTicks;
 uint32 PS3_colModelsCalls, PS3_colPlaneMisses, PS3_colPlaneTris;
 struct PS3ColTimer {

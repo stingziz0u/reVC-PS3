@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.2 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.3 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, but it hasn't had long play-throughs yet. Expect bugs and please
@@ -33,12 +33,21 @@ PS3 layer.
 > trilinear, anisotropic) and antialiasing (FXAA), and fewer hitches when
 > new areas stream in (textures converted several times faster, spread
 > over frames, and the log written in the background).
+> 1.3 alpha keeps the DXT textures compressed in video memory, where the RSX
+> reads them as they are: 4 times less VRAM, and the flights over the map
+> hold 59-60 fps instead of 55-57 with far fewer hitches. Textures are
+> converted on the PPU's second thread, mip levels use AltiVec, and big
+> smoke and explosion particles right in front of the camera fade out
+> (explosions no longer swamp the RSX). It fixes a crash in the Cubans'
+> *Naval Engagement* (a deleted object left in the physics list), and after
+> a crash the game goes back to the XMB instead of freezing the console.
 >
 > **Known issue:** a freeze after crashing a bike at high speed has been
-> reported. 1.2 alpha has fixes for what could cause it (the audio no longer
-> makes the game wait for the disk, and the world's sector loops can't run
-> away on bad coordinates), but it hasn't been confirmed fixed. If it
-> happens to you, please send the log.
+> reported. 1.2 and 1.3 alpha have fixes for what could cause it (the audio
+> no longer makes the game wait for the disk, the world's sector loops
+> can't run away on bad coordinates, deleted objects are taken out of the
+> physics list), but it hasn't been confirmed fixed. If it happens to you,
+> please send the log.
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
@@ -80,7 +89,7 @@ PlayStation button icons and the controller picture of the settings page).
 
 ## Installation
 
-1. Install `revc-ps3-1.2-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.3-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
@@ -167,7 +176,7 @@ On Linux or WSL (Ubuntu):
    make -C ps3 verify
    ```
 
-   The result is `ps3/revc-ps3-1.2-alpha.pkg`.
+   The result is `ps3/revc-ps3-1.3-alpha.pkg`.
 
 Other targets: `make -C ps3 DEBUG=1` (debug build with asserts),
 `make -C ps3 FTRACE=1` (function trace of peds, weapons, collision, HUD,
