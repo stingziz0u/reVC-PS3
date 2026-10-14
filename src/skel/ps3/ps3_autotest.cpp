@@ -231,9 +231,14 @@ static void fxAbStart(bool on)
 	memset(fxAbSlow, 0, sizeof(fxAbSlow));
 	memset(fxAbUs, 0, sizeof(fxAbUs));
 	memset(fxAbFill, 0, sizeof(fxAbFill));
-	fxAbApply(0);
-	if (!on)
+	if (on)
+		fxAbApply(0);
+	else {
+		// the defaults: big quads faded (patch 44), no alpha test
 		fxAbMode = -1;
+		gPS3FxLimit = 1;
+		rw::ps3::blendAlphaRef = 0;
+	}
 }
 
 static void fxAbLog(void)

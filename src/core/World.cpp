@@ -35,11 +35,32 @@ static inline int PS3_EntKind(CEntity *e) { return e->IsPed() ? 0 : e->IsVehicle
 #define PS3_ENT_T0() unsigned long long ps3t0 = PS3_Ticks()
 #define PS3_ENT_ADD(names, e) PS3_ProfAdd(PS3_PROF_WORLD, names[PS3_EntKind(e)], PS3_Ticks() - ps3t0)
 #define PS3_WORLD_STEP(name) PS3_ProfStep(PS3_PROF_WORLD, name)
+// patch 44: ProcessCollision in its passes (the first one, up to four more
+// for what isn't in a safe position yet, the stuck pass) and the models that
+// cost the most: the [col] log line. In patch 43's stress log, chaos with
+// the tank took collision to 8.6 ms a frame (the RSX waiting for the CPU).
+static unsigned long long ps3ColTicks[3];
+static uint32 ps3ColCalls[3];
+static unsigned long long ps3ColModelTicks[MODELINFOSIZE];
+static uint32 ps3ColModelCalls[MODELINFOSIZE];
+static inline void
+PS3_ColAdd(CEntity *e, int pass, unsigned long long t)
+{
+	ps3ColTicks[pass] += t;
+	ps3ColCalls[pass]++;
+	int mi = e->GetModelIndex();
+	if (mi >= 0 && mi < MODELINFOSIZE) {
+		ps3ColModelTicks[mi] += t;
+		ps3ColModelCalls[mi]++;
+	}
+}
+#define PS3_COL_PROCESS(e, pass) do { unsigned long long ps3c0 = PS3_Ticks(); (e)->ProcessCollision(); PS3_ColAdd((e), (pass), PS3_Ticks() - ps3c0); } while (0)
 #else
 #define PS3_CUR_ENTITY(e, step)
 #define PS3_ENT_T0()
 #define PS3_ENT_ADD(names, e)
 #define PS3_WORLD_STEP(name)
+#define PS3_COL_PROCESS(e, pass) (e)->ProcessCollision()
 #endif
 
 #define OBJECT_REPOSITION_OFFSET_Z 2.0f
@@ -2135,7 +2156,7 @@ CWorld::Process(void)
 				if(!movingEnt->bIsInSafePosition) {
 					PS3_CRUMB("world: ProcessCollision model", movingEnt->GetModelIndex());
 					PS3_CUR_ENTITY(movingEnt, "ProcessCollision");
-					movingEnt->ProcessCollision();
+					PS3_COL_PROCESS(movingEnt, 0);
 					movingEnt->GetMatrix().UpdateRW();
 					movingEnt->UpdateRwFrame();
 				}
@@ -2147,7 +2168,7 @@ CWorld::Process(void)
 					if(!movingEnt->bIsInSafePosition) {
 						PS3_CRUMB("world: ProcessCollision model", movingEnt->GetModelIndex());
 						PS3_CUR_ENTITY(movingEnt, "ProcessCollision");
-						movingEnt->ProcessCollision();
+						PS3_COL_PROCESS(movingEnt, 1);
 						movingEnt->GetMatrix().UpdateRW();
 						movingEnt->UpdateRwFrame();
 					}
@@ -2159,7 +2180,7 @@ CWorld::Process(void)
 					movingEnt->bIsStuck = true;
 					PS3_CRUMB("world: ProcessCollision (stuck) model", movingEnt->GetModelIndex());
 					PS3_CUR_ENTITY(movingEnt, "ProcessCollision");
-					movingEnt->ProcessCollision();
+					PS3_COL_PROCESS(movingEnt, 2);
 					movingEnt->GetMatrix().UpdateRW();
 					movingEnt->UpdateRwFrame();
 					if(!movingEnt->bIsInSafePosition) { movingEnt->bIsStuck = true; }
@@ -2467,3 +2488,40 @@ CWorld::IsWanderPathClear(CVector const& point1, CVector const& point2, float di
 	}
 	return true;
 }
+
+#ifdef __PS3__
+#include <sys/systime.h>
+// "[col] ..." with the [prof] lines (ps3_prof.cpp, every 10 s)
+void
+PS3_ColReport(unsigned int frames)
+{
+	if (frames == 0 || ps3ColCalls[0] == 0)
+		return;
+	double msPerTick = 1000.0 / sysGetTimebaseFrequency();
+	char line[700];
+	int len = snprintf(line, sizeof(line),
+	                   "[col]  ProcessCollision per frame: first pass %.2f ms (x%.1f), passes 2-5 %.2f ms (x%.1f), stuck pass %.2f ms (x%.1f) | slowest models:",
+	                   ps3ColTicks[0] * msPerTick / frames, (double)ps3ColCalls[0] / frames,
+	                   ps3ColTicks[1] * msPerTick / frames, (double)ps3ColCalls[1] / frames,
+	                   ps3ColTicks[2] * msPerTick / frames, (double)ps3ColCalls[2] / frames);
+	for (int k = 0; k < 6 && len < (int)sizeof(line) - 70; k++) {
+		int best = -1;
+		for (int i = 0; i < MODELINFOSIZE; i++)
+			if (ps3ColModelTicks[i] && (best < 0 || ps3ColModelTicks[i] > ps3ColModelTicks[best]))
+				best = i;
+		if (best < 0)
+			break;
+		CBaseModelInfo *mi = CModelInfo::GetModelInfo(best);
+		len += snprintf(line + len, sizeof(line) - len, " %s %.2f ms (x%.1f, %.3f each)",
+		                mi ? mi->GetModelName() : "?", ps3ColModelTicks[best] * msPerTick / frames,
+		                (double)ps3ColModelCalls[best] / frames,
+		                ps3ColModelTicks[best] * msPerTick / ps3ColModelCalls[best]);
+		ps3ColModelTicks[best] = 0;
+	}
+	PS3_Log(line);
+	memset(ps3ColTicks, 0, sizeof(ps3ColTicks));
+	memset(ps3ColCalls, 0, sizeof(ps3ColCalls));
+	memset(ps3ColModelTicks, 0, sizeof(ps3ColModelTicks));
+	memset(ps3ColModelCalls, 0, sizeof(ps3ColModelCalls));
+}
+#endif

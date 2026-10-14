@@ -1860,8 +1860,9 @@ PS3_ParticleFrameClamp(CParticle *particle, int type, RwRaster **frames)
 // a frame. Every quad's area on screen (clipped) is counted per type for
 // the [fx] log line. gPS3FxLimit 1: quads bigger than 0.7 of the screen's
 // height fade out up to 1.4, as the PC game already does with car smoke
-// (fParticleScaleLimit), so they don't pop.
-int32 gPS3FxLimit = 0;
+// (fParticleScaleLimit), so they don't pop. On since patch 44 (patch 43's
+// stress log: nothing looked different, the tank's fill 3.8 -> 0.05 screens).
+int32 gPS3FxLimit = 1;
 float gPS3FxFillAB;		// pixels drawn, read and reset by the autotest
 static double sFxFill[MAX_PARTICLES], sFxFaded;
 static uint32 sFxCount[MAX_PARTICLES];
@@ -1916,7 +1917,7 @@ PS3_FxReport(unsigned int frames)
 			if (sFxFill[order[b]] > sFxFill[order[a]]) { int t = order[a]; order[a] = order[b]; order[b] = t; }
 	char line[600];
 	int len = snprintf(line, sizeof(line), "[fx]   particles per frame: %.0f quads, %.2f screens of fill%s, %.2f faded out |",
-	                   (double)quads / frames, total / screen / frames, gPS3FxLimit ? "" : " (no limit)",
+	                   (double)quads / frames, total / screen / frames, gPS3FxLimit ? "" : " (limit off)",
 	                   sFxFaded / screen / frames);
 	for (int k = 0; k < n && k < 6 && len < (int)sizeof(line) - 60; k++) {
 		int i = order[k];
