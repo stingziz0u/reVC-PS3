@@ -120,6 +120,12 @@ struct Ps3Raster
 	uint8   vramFmt;	// PS3_VRAM_*: how the texels are kept in VRAM
 	bool    forcedMips;	// the MIPMAPS option added the mip levels
 	int8    pendingJobs;	// levels queued for the texture thread (stage 2)
+	// hardware probe (USRDIR/probe.txt): a texture described as is, its
+	// data written by the probe (format with the SWZ/LIN bit, location)
+	uint8   probeFmt;	// 0: not a probe texture
+	uint8   probeLoc;
+	uint8   probeLevels;
+	uint32  probeOffset, probePitch;
 };
 
 // VRAM formats of a texture (stage 2). DXT1 (most of VC's PC textures) is
@@ -183,6 +189,10 @@ void debugRaster(Raster *raster, const char *tag);
 void debugWatchRaster(Raster *raster, const char *tag);
 // draws known patterns offscreen, reads them back, logs what the RSX did
 void selfTest(const char *tag, Raster *font);
+// USRDIR/probe.txt: native DXT textures, textures in main memory and the
+// PPU's AltiVec, tried on the hardware and logged ([probe] lines)
+void hwProbe(void);
+void probeDecodeDXT(int32 dxt, uint8 *dst, int32 w, int32 h, const uint8 *src);
 // VRAM almost full (what is waiting to be freed counts as free):
 // the game's streaming throws out unused models while this is true
 bool vramTight(void);

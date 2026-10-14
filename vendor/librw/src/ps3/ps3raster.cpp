@@ -1603,6 +1603,24 @@ void
 rasterBindInfo(Raster *raster, gcmTexture *tex, bool *swizzled, int32 *numLevels)
 {
 	Ps3Raster *natras = GETPS3RASTEREXT(raster->parent);
+	if(natras->probeFmt){
+		// hwProbe's textures: as the probe describes them
+		memset(tex, 0, sizeof(*tex));
+		tex->format = natras->probeFmt;
+		tex->mipmap = natras->probeLevels;
+		tex->dimension = GCM_TEXTURE_DIMS_2D;
+		tex->cubemap = GCM_FALSE;
+		tex->remap = 0x00AAE4;
+		tex->width = raster->parent->originalWidth;
+		tex->height = raster->parent->originalHeight;
+		tex->depth = 1;
+		tex->location = natras->probeLoc;
+		tex->pitch = natras->probePitch;
+		tex->offset = natras->probeOffset;
+		*numLevels = natras->probeLevels;
+		*swizzled = true;	// REPEAT whatever the layout: that is what the probe tries
+		return;
+	}
 	if(natras->pendingJobs)
 		tjWaitRaster(natras);	// levels the texture thread hasn't finished
 	int32 n = 0;
@@ -1705,6 +1723,12 @@ debugRaster(Raster *raster, const char *tag)
 	       natras->swizzled ? "swizzled" : "linear", natras->isCompressed ? " DXT" : "",
 	       natras->numLevels, natras->validLevels, natras->hasAlpha ? "alpha" : "opaque",
 	       n ? a0*100/n : 0, n ? a255*100/n : 0, n ? black*100/n : 0, n ? white*100/n : 0);
+}
+
+void
+probeDecodeDXT(int32 dxt, uint8 *dst, int32 w, int32 h, const uint8 *src)
+{
+	decodeDXT(dxt, dst, w, h, src);
 }
 
 static Raster *white;

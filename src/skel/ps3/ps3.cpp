@@ -857,6 +857,16 @@ PS3_GameMain(void)
 	PS3_Logf("[6] RenderWare up: %dx%d", RsGlobal.maximumWidth, RsGlobal.maximumHeight);
 #if PS3_STAGE != 1
 	// PS3_SelfTest("boot");	// patch 18 and before; the menus are fixed
+	// patch 40: an empty USRDIR/probe.txt tries native DXT, textures in
+	// main memory and AltiVec on this console ([probe] lines), then boots on
+	{
+		FILE *pf = fopen(PS3_USRDIR "/probe.txt", "rb");
+		if (pf) {
+			fclose(pf);
+			rw::ps3::hwProbe();
+			PS3_LogSync();
+		}
+	}
 #endif
 
 	psPostRWinit();
