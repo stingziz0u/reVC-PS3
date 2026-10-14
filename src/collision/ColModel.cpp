@@ -5,6 +5,11 @@
 #include "MemoryHeap.h"
 #include "Pools.h"
 
+#ifdef __PS3__
+// patch 46: the bytes of the triangle planes, for the [col] log line
+uint32 PS3_colPlaneBytes;
+#endif
+
 CColModel::CColModel(void)
 {
 	numSpheres = 0;
@@ -70,6 +75,10 @@ CColModel::CalculateTrianglePlanes(void)
 	// HACK: allocate space for one more element to stuff the link pointer into
 	trianglePlanes = (CColTrianglePlane*)RwMalloc(sizeof(CColTrianglePlane) * (numTriangles+1));
 	REGISTER_MEMPTR(&trianglePlanes);
+#ifdef __PS3__
+	if(trianglePlanes)
+		PS3_colPlaneBytes += sizeof(CColTrianglePlane) * (numTriangles+1);
+#endif
 	for(int i = 0; i < numTriangles; i++)
 		trianglePlanes[i].Set(vertices, triangles[i]);
 
@@ -79,6 +88,10 @@ CColModel::CalculateTrianglePlanes(void)
 void
 CColModel::RemoveTrianglePlanes(void)
 {
+#ifdef __PS3__
+	if(trianglePlanes)
+		PS3_colPlaneBytes -= sizeof(CColTrianglePlane) * (numTriangles+1);
+#endif
 	RwFree(trianglePlanes);
 	trianglePlanes = nil;
 }

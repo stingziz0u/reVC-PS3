@@ -64,7 +64,13 @@ enum Config {
 	NUMBOATALPHALIST = 20,
 	NUMALPHAENTITYLIST = 200,
 	NUMALPHAUNTERWATERENTITYLIST = 30,
+#ifdef __PS3__
+	// the triangle planes of up to 200 col models kept (patch 46; the
+	// limit itself is PS3_colCacheLimit, which the tank stress test varies)
+	NUMCOLCACHELINKS = 200,
+#else
 	NUMCOLCACHELINKS = 50,
+#endif
 #ifdef __PS3__
 	// riots and big fights can use up 800: a reference that isn't registered
 	// leaves a dangling pointer when its entity is deleted (see References.cpp)

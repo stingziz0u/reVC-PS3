@@ -119,6 +119,7 @@ namespace rw { namespace ps3 { void vramStats(uint32 *used, uint32 *total, uint3
 extern int32 gPS3FxOff;	// Weather.cpp
 extern int32 gPS3FxLimit;	// Particle.cpp: big quads faded out
 extern float gPS3FxFillAB;	// Particle.cpp: pixels the particles drew
+extern int32 PS3_colCacheLimit;	// Collision.cpp: col models whose triangle planes are kept
 extern "C" void PS3_LogMemTag(const char *tag);
 extern const int32 gaCarsToCollectInCraigsGarages[TOTAL_COLLECTCARS_GARAGES][TOTAL_COLLECTCARS_CARS];	// Garages.cpp
 
@@ -644,9 +645,10 @@ static void buildPlan(void)
 	if (tankMode) {
 		// where the player is: he drives, the test keeps the tank and the
 		// police going (one tank for all the steps of a loop)
+		// the plane cache in turn: the PC's 50 col models, patch 46's 200
 		for (int i = 0; i < 10; i++)
-			addStep(ST_STRESS, SF_WANTED | (i < 9 ? SF_KEEP : 0), 0, 30.0f, 0,
-			        "tank stress %d/10 (30 s, you drive)", i + 1);
+			addStep(ST_STRESS, SF_WANTED | (i < 9 ? SF_KEEP : 0), (i & 1) ? NUMCOLCACHELINKS : 50, 30.0f, 0,
+			        "tank stress %d/10 (planes %d)", i + 1, (i & 1) ? (int)NUMCOLCACHELINKS : 50);
 		addStep(ST_LOOPEND, 0, 0, 0, 0, "end of loop");
 		PS3_Logf("[autotest] plan: tank stress, %d steps, %d loops", numSteps, loops);
 		return;
@@ -1375,6 +1377,8 @@ static void runStress(Step &s)
 	if (p == nil) { finishStep("FAIL no player"); return; }
 	if (phase == 0) {
 		stressSet(s.a);
+		if (tankMode && s.b > 0)
+			PS3_colCacheLimit = s.b;
 		// the tank of the step before, when it goes on (SF_KEEP)
 		bool tankLive = testCar && CPools::GetVehiclePool()->GetAt(testCarHandle) == testCar &&
 		                p->bInVehicle && p->m_pMyVehicle == testCar;
@@ -1472,6 +1476,7 @@ static void runLoopEnd(void)
 
 static void finishRun(void)
 {
+	PS3_colCacheLimit = NUMCOLCACHELINKS;
 	deleteTestCar();
 	stressDeleteCars();
 	stressRestore();
@@ -1655,8 +1660,10 @@ PS3_AutotestFrameStep(void)
 		startStep();
 	}
 
-	if (waitingForLoad || FrontEndMenuManager.m_bMenuActive)
+	if (waitingForLoad || FrontEndMenuManager.m_bMenuActive) {
+		lastFrameUs = 0;	// the time in the menu isn't a frame (patch 45 log: "worst 5435 ms")
 		return;
+	}
 
 	statsFrame();
 	keepPlayerSafe();

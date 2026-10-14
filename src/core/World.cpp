@@ -2498,6 +2498,16 @@ PS3_ColReport(unsigned int frames)
 	if (frames == 0 || ps3ColCalls[0] == 0)
 		return;
 	double msPerTick = 1000.0 / sysGetTimebaseFrequency();
+	extern unsigned long long PS3_colModelsTicks, PS3_colPlaneTicks;	// Collision.cpp
+	extern uint32 PS3_colModelsCalls, PS3_colPlaneMisses, PS3_colPlaneTris, PS3_colPlaneBytes;
+	extern int32 PS3_colCacheUsed, PS3_colCacheLimit;
+	PS3_Logf("[col]  inside: ProcessColModels %.2f ms (x%.0f); triangle planes not cached: %.2f ms (x%.1f, %.0f triangles); "
+	         "plane cache %d of %d col models, %u KB",
+	         PS3_colModelsTicks * msPerTick / frames, (double)PS3_colModelsCalls / frames,
+	         PS3_colPlaneTicks * msPerTick / frames, (double)PS3_colPlaneMisses / frames,
+	         (double)PS3_colPlaneTris / frames, PS3_colCacheUsed, PS3_colCacheLimit, PS3_colPlaneBytes >> 10);
+	PS3_colModelsTicks = PS3_colPlaneTicks = 0;
+	PS3_colModelsCalls = PS3_colPlaneMisses = PS3_colPlaneTris = 0;
 	char line[700];
 	int len = snprintf(line, sizeof(line),
 	                   "[col]  ProcessCollision per frame: first pass %.2f ms (x%.1f), passes 2-5 %.2f ms (x%.1f), stuck pass %.2f ms (x%.1f) | slowest models:",
