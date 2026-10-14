@@ -1853,6 +1853,82 @@ PS3_ParticleFrameClamp(CParticle *particle, int type, RwRaster **frames)
 	}
 	particle->m_nCurrentFrame = count - 1;
 }
+
+// patch 43: what the particles cost the RSX. Their quads are alpha blended
+// over the picture, and a puff of smoke next to the camera covers it all:
+// with the tank firing (patch 41-42 stress logs) the RSX took up to 12 ms
+// a frame. Every quad's area on screen (clipped) is counted per type for
+// the [fx] log line. gPS3FxLimit 1: quads bigger than 0.7 of the screen's
+// height fade out up to 1.4, as the PC game already does with car smoke
+// (fParticleScaleLimit), so they don't pop.
+int32 gPS3FxLimit = 0;
+float gPS3FxFillAB;		// pixels drawn, read and reset by the autotest
+static double sFxFill[MAX_PARTICLES], sFxFaded;
+static uint32 sFxCount[MAX_PARTICLES];
+
+// false: not drawn; *alpha may come back lower (the fade)
+static bool
+PS3_FxQuad(int type, float hw, float hh, float x, float y, uint8 *alpha)
+{
+	if (hw < 0.0f) hw = -hw;
+	if (hh < 0.0f) hh = -hh;
+	float x0 = Max(x - hw, 0.0f), x1 = Min(x + hw, (float)SCREEN_WIDTH);
+	float y0 = Max(y - hh, 0.0f), y1 = Min(y + hh, (float)SCREEN_HEIGHT);
+	float area = x1 > x0 && y1 > y0 ? (x1 - x0) * (y1 - y0) : 0.0f;
+	if (gPS3FxLimit && type != PARTICLE_WATER_HYDRANT) {
+		float r = Max(hw, hh) / SCREEN_HEIGHT;	// half the quad over the screen
+		if (r > 0.35f) {
+			float k = (0.7f - r) / 0.35f;
+			int a = k > 0.0f ? (int)(*alpha * k) : 0;
+			if (a < 4) {
+				sFxFaded += area;
+				return false;
+			}
+			*alpha = (uint8)a;
+		}
+	}
+	sFxFill[type] += area;
+	sFxCount[type]++;
+	gPS3FxFillAB += area;
+	return true;
+}
+
+// "[fx] particles per frame: ..." with the [prof] lines
+void
+PS3_FxReport(unsigned int frames)
+{
+	if (frames == 0)
+		return;
+	double screen = (double)SCREEN_WIDTH * SCREEN_HEIGHT, total = 0.0;
+	uint32 quads = 0;
+	int order[MAX_PARTICLES];
+	int n = 0;
+	for (int i = 0; i < MAX_PARTICLES; i++) {
+		total += sFxFill[i];
+		quads += sFxCount[i];
+		if (sFxFill[i] > 0.0)
+			order[n++] = i;
+	}
+	if (quads == 0 && sFxFaded == 0.0)
+		return;
+	for (int a = 0; a < n; a++)	// biggest fill first (few types)
+		for (int b = a + 1; b < n; b++)
+			if (sFxFill[order[b]] > sFxFill[order[a]]) { int t = order[a]; order[a] = order[b]; order[b] = t; }
+	char line[600];
+	int len = snprintf(line, sizeof(line), "[fx]   particles per frame: %.0f quads, %.2f screens of fill%s, %.2f faded out |",
+	                   (double)quads / frames, total / screen / frames, gPS3FxLimit ? "" : " (no limit)",
+	                   sFxFaded / screen / frames);
+	for (int k = 0; k < n && k < 6 && len < (int)sizeof(line) - 60; k++) {
+		int i = order[k];
+		len += snprintf(line + len, sizeof(line) - len, " %d %s %.2f (x%.0f)", i,
+		                mod_ParticleSystemManager.m_aParticles[i].m_aName,
+		                sFxFill[i] / screen / frames, (double)sFxCount[i] / frames);
+	}
+	PS3_Log(line);
+	memset(sFxFill, 0, sizeof(sFxFill));
+	memset(sFxCount, 0, sizeof(sFxCount));
+	sFxFaded = 0.0;
+}
 #endif
 
 #ifdef __PS3__
@@ -2164,9 +2240,17 @@ void CParticle::Render()
 						h += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y;
 					}
 					
+#ifdef __PS3__
+					uint8 ps3Alpha = particle->m_nAlpha;
+					if ( (i == PARTICLE_WATER_HYDRANT
+							|| (!particleBanned || SCREEN_WIDTH * fParticleScaleLimit >= w)
+							&& SCREEN_HEIGHT * fParticleScaleLimit >= h)
+						&& PS3_FxQuad(i, particle->m_fSize * w, particle->m_fSize * h, coors.x, coors.y, &particle->m_nAlpha) )
+#else
 					if ( i == PARTICLE_WATER_HYDRANT
 							|| (!particleBanned || SCREEN_WIDTH * fParticleScaleLimit >= w)
 							&& SCREEN_HEIGHT * fParticleScaleLimit >= h )
+#endif
 					{
 						if ( i == PARTICLE_WATER_HYDRANT )
 						{
@@ -2348,6 +2432,9 @@ void CParticle::Render()
 										particle->m_nAlpha);
 							}
 						}
+#ifdef __PS3__
+						particle->m_nAlpha = ps3Alpha;	// the fade is only for this frame
+#endif
 					}
 				}
 			}

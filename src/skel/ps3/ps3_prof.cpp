@@ -49,6 +49,8 @@ struct ProfTimer
 	u64 total;
 };
 
+void PS3_FxReport(unsigned int frames);	// Particle.cpp
+
 static ProfTimer timers[MAX_TIMERS];
 static int numTimers;
 static u64 frameStart, frameTotal, lastLog;
@@ -230,6 +232,7 @@ PS3_ProfFrame(void)
 	}
 	LogStepGroup(1, "world (CWorld::Process; the checks are inside control peds)", frames);
 	LogStepGroup(2, "scene (RenderScene, RenderEffects)", frames);
+	PS3_FxReport(frames);	// Particle.cpp: what the particles drew
 	PS3_LogMemTag("[mem] ");	// heap, free user memory, textures, streaming
 #if PS3_STAGE != 1
 	{

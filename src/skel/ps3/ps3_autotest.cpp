@@ -113,6 +113,8 @@
 namespace rw { namespace ps3 { void vramStats(uint32 *used, uint32 *total, uint32 *blocks); extern bool additiveKill;
 	extern bool rsxTiling, zcullOn; extern int32 blendAlphaRef; void setFlipVsync(bool on); } }
 extern int32 gPS3FxOff;	// Weather.cpp
+extern int32 gPS3FxLimit;	// Particle.cpp: big quads faded out
+extern float gPS3FxFillAB;	// Particle.cpp: pixels the particles drew
 extern "C" void PS3_LogMemTag(const char *tag);
 extern const int32 gaCarsToCollectInCraigsGarages[TOTAL_COLLECTCARS_GARAGES][TOTAL_COLLECTCARS_CARS];	// Garages.cpp
 
@@ -203,6 +205,53 @@ static uint64 lastFrameUs;
 // per step frame stats
 static uint32 sFrames, sSlow, sVerySlow;
 static uint64 sWorstUs, sSumUs;
+
+// patch 43: in the stress steps with explosions, the particle options in
+// turn, 5 s each (what is on screen changes too much from one run to the
+// next to compare runs): 0 as the game, 1 big quads faded out, 2 alpha
+// test on blended draws (ref 8: the faint fragments not blended), 3 both
+enum { FXAB_MODES = 4 };
+static bool fxAB;
+static int fxAbMode = -1;
+static uint32 fxAbFrames[FXAB_MODES], fxAbSlow[FXAB_MODES];
+static uint64 fxAbUs[FXAB_MODES];
+static double fxAbFill[FXAB_MODES];
+
+static void fxAbApply(int mode)
+{
+	fxAbMode = mode;
+	gPS3FxLimit = mode & 1;
+	rw::ps3::blendAlphaRef = (mode & 2) ? 8 : 0;
+}
+
+static void fxAbStart(bool on)
+{
+	fxAB = on;
+	memset(fxAbFrames, 0, sizeof(fxAbFrames));
+	memset(fxAbSlow, 0, sizeof(fxAbSlow));
+	memset(fxAbUs, 0, sizeof(fxAbUs));
+	memset(fxAbFill, 0, sizeof(fxAbFill));
+	fxAbApply(0);
+	if (!on)
+		fxAbMode = -1;
+}
+
+static void fxAbLog(void)
+{
+	if (!fxAB)
+		return;
+	static const char *names[FXAB_MODES] = { "as the game", "big quads faded", "alpha ref 8", "both" };
+	char line[512];
+	int len = snprintf(line, sizeof(line), "[autotest]     particles compared (5 s each):");
+	for (int m = 0; m < FXAB_MODES; m++) {
+		uint32 f = fxAbFrames[m];
+		len += snprintf(line + len, sizeof(line) - len, " | %s: %.1f fps, %u of %u frames >20 ms, fill %.2f screens",
+		                names[m], fxAbUs[m] ? f * 1000000.0 / fxAbUs[m] : 0.0, fxAbSlow[m], f,
+		                f ? fxAbFill[m] / ((double)SCREEN_WIDTH * SCREEN_HEIGHT) / f : 0.0);
+	}
+	PS3_Log(line);
+	fxAbStart(false);
+}
 
 static uint64 nowUs(void) { return sysGetSystemTime(); }
 static float phaseSecs(void) { return (nowUs() - phaseStartUs) / 1000000.0f; }
@@ -394,6 +443,18 @@ static void statsFrame(void)
 		if (dt > sWorstUs) sWorstUs = dt;
 		if (dt > 20000) sSlow++;
 		if (dt > 50000) sVerySlow++;
+		if (fxAB && fxAbMode >= 0) {
+			fxAbFrames[fxAbMode]++;
+			fxAbUs[fxAbMode] += dt;
+			if (dt > 20000) fxAbSlow[fxAbMode]++;
+			fxAbFill[fxAbMode] += gPS3FxFillAB;
+		}
+	}
+	gPS3FxFillAB = 0.0f;
+	if (fxAB) {
+		int m = (int)(((n - stepStartUs) / 5000000) % FXAB_MODES);
+		if (m != fxAbMode)
+			fxAbApply(m);
 	}
 	lastFrameUs = n;
 }
@@ -420,6 +481,7 @@ static void logStep(const char *result)
 	         used >> 20, CStreaming::ms_memoryUsed / 1048576.0f, heapMB, delta,
 	         CPools::GetPedPool()->GetNoOfUsedSpaces(), CPools::GetVehiclePool()->GetNoOfUsedSpaces(),
 	         CPools::GetObjectPool()->GetNoOfUsedSpaces(), pickups);
+	fxAbLog();	// the particle options of the step, after its line
 }
 
 static void logScripts(const char *tag)
@@ -704,6 +766,7 @@ static void startStep(void)
 	statsReset();
 	Step &s = steps[cur];
 	PS3_Logf("[autotest] %d/%d step %d/%d: %s", loop + 1, loops, cur + 1, numSteps, s.name);
+	fxAbStart(stressMode && s.type == ST_STRESS && (s.a & (SF_EXPLODE | SF_WANTED)) != 0);
 	PS3_CRUMB("autotest step (loop*1000 + step)", loop * 1000 + cur + 1);
 }
 
