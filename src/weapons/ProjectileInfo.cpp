@@ -1,4 +1,5 @@
 #include "common.h"
+#include "Pools.h"
 
 #include "Camera.h"
 #include "General.h"
@@ -24,6 +25,21 @@ CProjectile *CProjectileInfo::ms_apProjectile[NUM_PROJECTILES];
 #define PROJECTILE_BOUNDARY_MAX_X 1590.0f
 #define PROJECTILE_BOUNDARY_MIN_Y -1990.0f
 #define PROJECTILE_BOUNDARY_MAX_Y 1990.0f
+
+
+#ifdef __PS3__
+static bool
+PS3_ProjSourceLive(const void *p)
+{
+	int idx;
+	bool isFree;
+	if (CPools::GetPedPool()->PS3_Owns(p, &idx, &isFree) ||
+	    CPools::GetVehiclePool()->PS3_Owns(p, &idx, &isFree) ||
+	    CPools::GetObjectPool()->PS3_Owns(p, &idx, &isFree))
+		return !isFree;
+	return false;
+}
+#endif
 
 void
 CProjectileInfo::Initialise()
@@ -224,7 +240,12 @@ CProjectileInfo::RemoveProjectile(CProjectileInfo *info, CProjectile *projectile
 			CExplosion::AddExplosion(nil, info->m_pSource, EXPLOSION_MOLOTOV, projectile->GetPosition(), 0);
 			break;
 		case WEAPONTYPE_ROCKET:
+#ifdef __PS3__
+			// no source any more (deleted, see Update): no nil dereference
+			CExplosion::AddExplosion(nil, info->m_pSource && info->m_pSource->IsVehicle() ? ((CVehicle*)info->m_pSource)->pDriver : info->m_pSource, EXPLOSION_ROCKET, projectile->GetPosition(), 0);
+#else
 			CExplosion::AddExplosion(nil, info->m_pSource->IsVehicle() ? ((CVehicle*)info->m_pSource)->pDriver : info->m_pSource, EXPLOSION_ROCKET, projectile->GetPosition(), 0);
+#endif
 			break;
 	}
 #ifdef SQUEEZE_PERFORMANCE
@@ -266,9 +287,18 @@ CProjectileInfo::Update()
 	for (int i = 0; i < ARRAY_SIZE(gaProjectileInfo); i++) {
 		if (!gaProjectileInfo[i].m_bInUse) continue;
 
+#ifdef __PS3__
+		// the thrower deleted (a ped, or the vehicle of a rocket: the check
+		// below only knew peds, and read the freed one to know it): forgotten
+		if (gaProjectileInfo[i].m_pSource && !PS3_ProjSourceLive(gaProjectileInfo[i].m_pSource))
+			gaProjectileInfo[i].m_pSource = nil;
+		CPed *ped = (CPed*)gaProjectileInfo[i].m_pSource;
+		(void)ped;
+#else
 		CPed *ped = (CPed*)gaProjectileInfo[i].m_pSource;
 		if (ped != nil && ped->IsPed() && !ped->IsPointerValid())
 			gaProjectileInfo[i].m_pSource = nil;
+#endif
 
 		if (ms_apProjectile[i] == nil) {
 #ifdef SQUEEZE_PERFORMANCE
@@ -335,7 +365,11 @@ CProjectileInfo::Update()
 		} else {
 			if (gaProjectileInfo[i].m_eWeaponType == WEAPONTYPE_DETONATOR_GRENADE) {
 				CEntity *ent = gaProjectileInfo[i].m_pSource;
+#ifdef __PS3__
+				if (ent && ent->IsPed() && ((CPed*)ped)->IsPlayer()) {	// the thrower may be gone
+#else
 				if (ent->IsPed() && ((CPed*)ped)->IsPlayer()) {
+#endif
 					CPed *ped = (CPed*)ent;
 					if (ped->GetWeapon(ped->GetWeaponSlot(WEAPONTYPE_DETONATOR)).m_eWeaponType != WEAPONTYPE_DETONATOR
 						|| ped->GetWeapon(ped->GetWeaponSlot(WEAPONTYPE_DETONATOR)).m_nAmmoTotal == 0) {

@@ -241,6 +241,10 @@ CPhysical::GetBoundRect(void)
 void
 CPhysical::AddToMovingList(void)
 {
+#ifdef __PS3__
+	if(m_movingListNode)
+		return;	// already in it: twice, it was processed twice a frame (and one node left behind)
+#endif
 	if (!bIsStaticWaitingForCollision)
 		m_movingListNode = CWorld::GetMovingEntityList().InsertItem(this);
 }
