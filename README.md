@@ -65,6 +65,10 @@ PlayStation button icons and the controller picture of the settings page).
   (*Controller setup > Gamepad settings*).
   PlayStation buttons in the on-screen help.
 - The pause menu **map**: L1 shows the legend, X sets a waypoint.
+- **Collectibles on the map** (*Display > Hidden packages on map / Rampages
+  on map*, off by default): the hidden packages in lime green and the
+  rampages in blood red, on the radar (the nearest one at its edge when none
+  is in range) and the pause menu map. One you pick up (or pass) disappears.
 - All the radio stations, and the **MP3 player** station: put `.mp3` files
   in `USRDIR/mp3`.
 - **Skins**: put `.bmp` skins in `USRDIR/skins`, choose them in *Player setup*.

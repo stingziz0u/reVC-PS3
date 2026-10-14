@@ -19,6 +19,13 @@
 #include "Streaming.h"
 #include "SpecialFX.h"
 #include "Font.h"
+#ifdef __PS3__
+#include "Pickups.h"
+#include "Darkel.h"
+#include "Game.h"
+#include "ModelIndices.h"
+#include "Text.h"
+#endif
 
 float CRadar::m_radarRange;
 sRadarTrace CRadar::ms_RadarTrace[NUMRADARBLIPS];
@@ -474,6 +481,85 @@ void CRadar::Draw3dMarkers()
 	}
 }
 
+#ifdef __PS3__
+// Collectibles on the radar and the pause menu map (Display: HIDDEN PACKAGES
+// ON MAP, RAMPAGES ON MAP), like the "collectibles on radar" mod of San
+// Andreas. They are the game's own pickups, read every frame: one picked up
+// (or a rampage passed) is gone from the list, and so from the map. Drawn
+// here, not as radar blips: nothing of it goes into the save.
+int8 gPS3MapPackages, gPS3MapRampages;
+enum { PS3_LEGEND_PACKAGE = -3, PS3_LEGEND_RAMPAGE = -4 };
+static const CRGBA ps3PackageColour(120, 255, 40, 255);	// lime green
+static const CRGBA ps3RampageColour(165, 10, 10, 255);	// blood red
+
+static void
+PS3_CollectibleBlip(const CVector &pos, const CRGBA &c, int legend)
+{
+	CVector2D in, out;
+	CRadar::TransformRealWorldPointToRadarSpace(in, pos);
+	CRadar::LimitRadarPoint(in);
+	CRadar::TransformRadarPointToScreenSpace(out, in);
+	// up / down triangles above or below the player, as the game's blips
+	const CVector &me = FindPlayerCentreOfWorld_NoSniperShift();
+	uint8 mode = BLIP_MODE_TRIANGULAR_UP;
+	if (pos.z - me.z <= 2.0f)
+		mode = pos.z - me.z < -4.0f ? BLIP_MODE_TRIANGULAR_DOWN : BLIP_MODE_SQUARE;
+	CRadar::ShowRadarTraceWithHeight(out.x, out.y, 2, c.r, c.g, c.b, 255, mode);
+	if (FrontEndMenuManager.m_bMenuMapActive) {
+		for (int i = 0; i < CRadar::MapLegendCounter; i++)
+			if (CRadar::MapLegendList[i] == legend)
+				return;
+		if (CRadar::MapLegendCounter < NUM_MAP_LEGENDS)
+			CRadar::MapLegendList[CRadar::MapLegendCounter++] = legend;
+	}
+}
+
+// On the map all of them; on the radar the ones in its range, or else the
+// nearest of each kind at the radar's edge
+static void
+PS3_DrawCollectibles(void)
+{
+	bool map = FrontEndMenuManager.m_bMenuMapActive;
+	if (CTheScripts::bPlayerIsInTheStatium && map)
+		return;
+	for (int kind = 0; kind < 2; kind++) {
+		if (kind == 0 ? !gPS3MapPackages : !gPS3MapRampages)
+			continue;
+		// the game hides the rampages during missions and frenzies
+		if (kind == 1 && (CTheScripts::IsPlayerOnAMission() || CDarkel::FrenzyOnGoing() || !CGame::nastyGame))
+			continue;
+		const CRGBA &c = kind == 0 ? ps3PackageColour : ps3RampageColour;
+		int legend = kind == 0 ? PS3_LEGEND_PACKAGE : PS3_LEGEND_RAMPAGE;
+		int nearest = -1;
+		float nearestDist = 0.0f;
+		bool inRange = false;
+		for (int i = 0; i < NUMPICKUPS; i++) {
+			CPickup &p = CPickups::aPickUps[i];
+			if (p.m_eType == PICKUP_NONE)
+				continue;
+			if (kind == 0 ? p.m_eType != PICKUP_COLLECTABLE1 : p.m_eModelIndex != MI_PICKUP_KILLFRENZY)
+				continue;
+			if (map) {
+				PS3_CollectibleBlip(p.m_vecPos, c, legend);
+				continue;
+			}
+			CVector2D in;
+			CRadar::TransformRealWorldPointToRadarSpace(in, p.m_vecPos);
+			float d = in.Magnitude();	// 1: the radar's edge
+			if (d <= 1.0f) {
+				PS3_CollectibleBlip(p.m_vecPos, c, legend);
+				inRange = true;
+			} else if (nearest < 0 || d < nearestDist) {
+				nearest = i;
+				nearestDist = d;
+			}
+		}
+		if (!map && !inRange && nearest >= 0)
+			PS3_CollectibleBlip(CPickups::aPickUps[nearest].m_vecPos, c, legend);
+	}
+}
+#endif
+
 void CRadar::DrawBlips()
 {
 	if (!TheCamera.m_WideScreenOn && CHud::m_Wants_To_Draw_Hud) {
@@ -513,6 +599,10 @@ void CRadar::DrawBlips()
 			TransformRadarPointToScreenSpace(out, in);
 			DrawRadarSprite(RADAR_SPRITE_NORTH, out.x, out.y, 255);
 		}
+
+#ifdef __PS3__
+		PS3_DrawCollectibles();	// under the game's own blips
+#endif
 
 		for(int blipId = 0; blipId < NUMRADARBLIPS; blipId++) {
 			if (!ms_RadarTrace[blipId].m_bInUse)
@@ -1540,6 +1630,16 @@ CRadar::DrawCoordBlip(int32 blipId)
 void
 CRadar::DrawLegend(int32 x, int32 y, int32 sprite)
 {
+#ifdef __PS3__
+	if (sprite == PS3_LEGEND_PACKAGE || sprite == PS3_LEGEND_RAMPAGE) {
+		CSprite2d::DrawRect(CRect(x + SCREEN_SCALE_X(4.0f), y + SCREEN_SCALE_Y(3.0f), SCREEN_SCALE_X(12.0f) + x, SCREEN_SCALE_Y(12.0f) + y), CRGBA(0, 0, 0, 255));
+		CSprite2d::DrawRect(CRect(x + SCREEN_SCALE_X(5.0f), y + SCREEN_SCALE_Y(4.0f), SCREEN_SCALE_X(11.0f) + x, SCREEN_SCALE_Y(11.0f) + y),
+		                    sprite == PS3_LEGEND_PACKAGE ? ps3PackageColour : ps3RampageColour);
+		CFont::PrintString(SCREEN_SCALE_X(20.f) + x, SCREEN_SCALE_Y(3.0f) + y,
+		                   TheText.Get(sprite == PS3_LEGEND_PACKAGE ? "LG_HPK" : "LG_RMP"));
+		return;
+	}
+#endif
 	if (sprite < 0) {
 		static PauseModeTime lastChange = 0;
 		static int8 blipMode = 0;

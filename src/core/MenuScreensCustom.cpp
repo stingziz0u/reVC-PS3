@@ -41,6 +41,8 @@ const char *texFilterNames[] = { "FEG_TF0", "FEG_TF1", "FEG_TF2", "FEG_TF3", "FE
 const char *antialiasNames[] = { "FEM_OFF", "FEG_AAF" };
 // Gamepad settings: right stick sensitivity, third and first person (Cam.cpp)
 extern int8 gPS3Sens3rd, gPS3Sens1st;
+// Display: collectibles on the radar and the map (Radar.cpp)
+extern int8 gPS3MapPackages, gPS3MapRampages;
 const char *sensLevels[] = { "FEC_SN0", "FEC_SN1", "FEC_SN2", "FEC_SN3", "FEC_SN4", "FEC_SN5", "FEC_SN6" };
 #ifdef RW_PS3_RSX
 #include "src/ps3/rwps3.h"
@@ -206,6 +208,10 @@ void RestoreDefDisplay(int8 action) {
 	#endif
 	#if defined(__PS3__) && defined(RW_PS3_RSX)
 		gPS3ScreenFit = 90;
+	#endif
+	#ifdef __PS3__
+		gPS3MapPackages = 0;
+		gPS3MapRampages = 0;
 	#endif
 	#ifdef GRAPHICS_MENU_OPTIONS // otherwise Frontend will handle those
 		FrontEndMenuManager.m_PrefsBrightness = 256;
@@ -531,6 +537,10 @@ CMenuScreenCustom aScreens[] = {
 #endif
 		MENUACTION_LEGENDS,		"MAP_LEG", { nil, SAVESLOT_NONE, MENUPAGE_DISPLAY_SETTINGS }, 0, 0, MENUALIGN_LEFT,
 		MENUACTION_RADARMODE,	"FED_RDR", { nil, SAVESLOT_NONE, MENUPAGE_DISPLAY_SETTINGS }, 0, 0, MENUALIGN_LEFT,
+#ifdef __PS3__
+		MENUACTION_CFO_SELECT,	"FED_MHP", { new CCFOSelect((int8*)&gPS3MapPackages, "Display", "HiddenPackagesOnMap", off_on, 2, false) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_SELECT,	"FED_MRP", { new CCFOSelect((int8*)&gPS3MapRampages, "Display", "RampagesOnMap", off_on, 2, false) }, 0, 0, MENUALIGN_LEFT,
+#endif
 		MENUACTION_HUD,			"FED_HUD", { nil, SAVESLOT_NONE, MENUPAGE_DISPLAY_SETTINGS }, 0, 0, MENUALIGN_LEFT,
 		MENUACTION_SUBTITLES,	"FED_SUB", { nil, SAVESLOT_NONE, MENUPAGE_DISPLAY_SETTINGS }, 0, 0, MENUALIGN_LEFT,
 		SCREEN_FIT_SELECTOR

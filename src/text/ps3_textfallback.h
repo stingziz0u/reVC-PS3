@@ -27,6 +27,10 @@ static const struct { const char *key; const char *text; } ps3TextFallback[] = {
 	{ "FEC_SN4", "150%" },	// reVC-PS3's own
 	{ "FEC_SN5", "175%" },	// reVC-PS3's own
 	{ "FEC_SN6", "200%" },	// reVC-PS3's own
+	{ "FED_MHP", "HIDDEN PACKAGES ON MAP" },	// reVC-PS3's own
+	{ "FED_MRP", "RAMPAGES ON MAP" },	// reVC-PS3's own
+	{ "LG_HPK", "Hidden package" },	// reVC-PS3's own (map legend)
+	{ "LG_RMP", "Rampage" },	// reVC-PS3's own (map legend)
 	{ "FEH_MPS", "STICK/D-PAD MOVE - ~J~ ~V~ ZOOM - ~X~ WAYPOINT - ~K~ LEGEND" },	// reVC-PS3's own
 	{ "CRIMRA", "Criminal rating:" },
 	{ "FEA_2SP", "2 Speakers" },
