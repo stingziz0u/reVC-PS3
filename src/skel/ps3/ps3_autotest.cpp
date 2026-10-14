@@ -49,6 +49,10 @@
 //                in the rain (streaming). The same steps every time: compare
 //                the "[autotest]" and "[prof]" lines of two builds. The
 //                player can't die; everything is put back at the end.
+//   "mode=tankstress" the player in a tank with its doors locked (no busts),
+//                wanted level 6 kept up, 5 minutes in 30 s steps
+//                ("loops=N" for more): you drive and make the chaos, the
+//                [prof] / [col] / [fx] lines say what it costs.
 // Not automated: unique stunt jumps and store robberies (they need driving
 // and aiming), RC missions' vans.
 
@@ -149,6 +153,7 @@ enum {
 	SF_EXPLODE = 64,	// 8 cars around the player, blown up one every 3 s
 	SF_WANTED = 128,	// wanted level 6, the player in a tank (bulletproof)
 	SF_CAPS = 256,		// the caps raised: 40 peds, 20 cars (game: 15 and 7)
+	SF_KEEP = 512,		// the tank and the wanted level go on into the next step
 };
 
 enum { PK_PACKAGE, PK_RAMPAGE, PK_CLOTHES, PK_PROPERTY };
@@ -171,6 +176,7 @@ static int leakMode;		// "mode=leak": the same few actions over and over, heap l
 static int gpuMode;		// "mode=gpu": smoke / rain / ZCULL compared where the player is, no 60 fps cap
 static int fullMode;		// "mode=full": every mission script, the odd jobs, one of each collectible
 static int stressMode;		// "mode=stress": the heaviest loads, one at a time, then all together
+static int tankMode;		// "mode=tankstress": the player drives a locked tank, wanted 6
 static int fromMission = 0, toMission = -1;	// "from=N" / "to=N": a part of the missions only
 static float missionSecs = 30.0f;		// "secs=N"
 static int resumeOff;		// "resume=0": don't skip past a mission a previous run died in
@@ -632,6 +638,17 @@ static void buildPlan(void)
 		rw::ps3::setFlipVsync(false);
 		PS3_Logf("[autotest] plan: gpu test, %d steps, %d loops; tiling %s", numSteps, loops,
 		         rw::ps3::rsxTiling ? "on" : "OFF (notiles.txt)");
+		return;
+	}
+
+	if (tankMode) {
+		// where the player is: he drives, the test keeps the tank and the
+		// police going (one tank for all the steps of a loop)
+		for (int i = 0; i < 10; i++)
+			addStep(ST_STRESS, SF_WANTED | (i < 9 ? SF_KEEP : 0), 0, 30.0f, 0,
+			        "tank stress %d/10 (30 s, you drive)", i + 1);
+		addStep(ST_LOOPEND, 0, 0, 0, 0, "end of loop");
+		PS3_Logf("[autotest] plan: tank stress, %d steps, %d loops", numSteps, loops);
 		return;
 	}
 
@@ -1358,12 +1375,18 @@ static void runStress(Step &s)
 	if (p == nil) { finishStep("FAIL no player"); return; }
 	if (phase == 0) {
 		stressSet(s.a);
-		deleteTestCar();
+		// the tank of the step before, when it goes on (SF_KEEP)
+		bool tankLive = testCar && CPools::GetVehiclePool()->GetAt(testCarHandle) == testCar &&
+		                p->bInVehicle && p->m_pMyVehicle == testCar;
+		if (!((s.a & SF_WANTED) && tankLive))
+			deleteTestCar();
 		stressDeleteCars();
 		if (!(s.a & SF_WANTED))
 			clearWanted();
 		CVector here = p->bInVehicle && p->m_pMyVehicle ? p->m_pMyVehicle->GetPosition() : p->GetPosition();
-		if (s.a & SF_WANTED) {
+		if ((s.a & SF_WANTED) && tankLive)
+			p->SetWantedLevel(6);
+		else if (s.a & SF_WANTED) {
 			// in a tank, as in Sir, Yes Sir: they can't drag him out of it
 			CVector pos = here + CVector(4.0f, 0.0f, 0.0f);
 			bool found = false;
@@ -1429,7 +1452,7 @@ static void runStress(Step &s)
 		         CPools::GetVehiclePool()->GetNoOfUsedSpaces(), CCarCtrl::MaxNumberOfCarsInUse,
 		         CWeather::NewWeatherType, CClock::GetHours(), CClock::GetMinutes());
 		stressDeleteCars();
-		if (s.a & SF_WANTED) {
+		if ((s.a & SF_WANTED) && !(s.a & SF_KEEP)) {
 			deleteTestCar();
 			clearWanted();
 		}
@@ -1499,6 +1522,8 @@ static bool readConfig(void)
 			fullMode = 1;
 		if (strncmp(line, "mode=stress", 11) == 0)
 			stressMode = 1;
+		if (strncmp(line, "mode=tankstress", 15) == 0)
+			tankMode = 1;
 		if (sscanf(line, "from=%d", &v) == 1 && v >= 0)
 			fromMission = v;
 		if (sscanf(line, "to=%d", &v) == 1 && v >= 0)

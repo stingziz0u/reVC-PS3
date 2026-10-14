@@ -145,7 +145,9 @@ other games or platforms don't work.
   `mode=rain`, `mode=leak`, `mode=stress` (the heaviest loads in Little
   Haiti: rain, hurricane, night, traffic, a riot with armed peds, cars blown
   up, wanted level 6 in a tank, all of it at once; then flights in the rain;
-  about 7 minutes). The file is renamed to `autotest.done.txt` when the test
+  about 7 minutes), `mode=tankstress` (you drive a tank with its doors
+  locked and wanted level 6 kept up, 5 minutes; for performance logs of
+  the chaos). The file is renamed to `autotest.done.txt` when the test
   ends.
 
 ## Building
