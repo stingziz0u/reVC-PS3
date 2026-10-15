@@ -966,6 +966,9 @@ int8 CRunningScript::ProcessCommands1300To1399(int32 command)
 				continue;
 			handle = CPools::GetVehiclePool()->GetIndex(pVehicle);
 		}
+#ifdef __PS3__
+		PS3_ScriptCarQuery(this, "GET_RANDOM_CAR_OF_TYPE_IN_AREA_NO_SAVE", handle, 0, infX, infY, supX, supY, ScriptParams[4]);
+#endif
 		ScriptParams[0] = handle;
 		StoreParameters(&m_nIp, 1);
 		return 0;
