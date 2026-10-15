@@ -2173,6 +2173,16 @@ PS3_ScriptCarQuery(CRunningScript *s, const char *what, int32 handle, int32 mark
 	calls = found = 0;
 }
 
+// a getter asked about an entity that isn't there: logged, the script goes on
+void
+PS3_ScriptGone(CRunningScript *s, const char *what, int32 handle)
+{
+	char name[9];
+	memcpy(name, s->m_abScriptName, 8);
+	name[8] = '\0';
+	PS3_Logf("[script] %s: %s of handle %d, which isn't there (deleted?): (0, 0, 0), the script goes on", name, what, handle);
+}
+
 // HAS_MODEL_LOADED false for more than 5 s (then every 10 s): the model's
 // streaming state
 void
@@ -4047,6 +4057,17 @@ int8 CRunningScript::ProcessCommands100To199(int32 command)
 	{
 		CollectParameters(&m_nIp, 1);
 		CPed* ped = CPools::GetPedPool()->GetAt(ScriptParams[0]);
+#ifdef __PS3__
+		// patch 51: a char that isn't there any more (deleted under the
+		// script, see ClearSpaceForMissionEntity): (0, 0, 0) and the script
+		// goes on (its next IS_CHAR_DEAD says he's gone) instead of stopping
+		if (ped == nil) {
+			PS3_ScriptGone(this, "GET_CHAR_COORDINATES", ScriptParams[0]);
+			ScriptParams[0] = ScriptParams[1] = ScriptParams[2] = 0;
+			StoreParameters(&m_nIp, 3);
+			return 0;
+		}
+#endif
 		script_check(ped);
 		CVehicle* vehicle;
 		CVector pos;
@@ -4270,6 +4291,14 @@ int8 CRunningScript::ProcessCommands100To199(int32 command)
 	{
 		CollectParameters(&m_nIp, 1);
 		CVehicle* car = CPools::GetVehiclePool()->GetAt(ScriptParams[0]);
+#ifdef __PS3__
+		if (car == nil) {	// as GET_CHAR_COORDINATES
+			PS3_ScriptGone(this, "GET_CAR_COORDINATES", ScriptParams[0]);
+			ScriptParams[0] = ScriptParams[1] = ScriptParams[2] = 0;
+			StoreParameters(&m_nIp, 3);
+			return 0;
+		}
+#endif
 		script_check(car);
 		*(CVector*)&ScriptParams[0] = car->GetPosition();
 		StoreParameters(&m_nIp, 3);

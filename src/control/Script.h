@@ -34,6 +34,7 @@ void ScriptBroken(const char *file, int line);
 class CRunningScript;
 void PS3_ScriptCarQuery(CRunningScript *s, const char *what, int32 handle, int32 marked, float x1, float y1, float x2, float y2, int32 model);
 void PS3_ScriptModelWait(CRunningScript *s, int32 model, bool loaded);
+void PS3_ScriptGone(CRunningScript *s, const char *what, int32 handle);
 #else
 #define script_bad() script_assert(0)
 #define script_check(p) script_assert(p)
