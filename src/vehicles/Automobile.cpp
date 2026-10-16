@@ -50,6 +50,40 @@
 #include "Automobile.h"
 #include "Bike.h"
 #include "Wanted.h"
+#ifdef __PS3__
+#include "ps3_platform.h"
+
+// Sirens and the Mr Whoopee jingle switch on a horn tap. The original looks
+// at the last 5 pad updates (bHornHistory) and only counts a press of 1-3
+// frames: 100 ms at 30 fps, 50 ms at 60 fps, shorter than a real thumb tap
+// on L3, so the jingle (Distribution, the ice cream sales) and the sirens
+// hardly ever switched. Here it goes by time: a press released before
+// PS3_HORN_TAP_MS switches, a longer one honks while held.
+#define PS3_HORN_TAP_MS 250
+static uint32 ps3HornFrame = ~0u;
+static uint32 ps3HornDownAt;
+static bool ps3HornWasDown;
+static bool ps3HornTap;
+
+// Once per frame. honk: held long enough to be the horn.
+static bool
+PS3_HornTapped(bool &honk)
+{
+	uint32 now = CTimer::GetTimeInMilliseconds();
+	bool down = Pads[0].GetHorn();
+	if(ps3HornFrame != CTimer::GetFrameCounter()){
+		ps3HornFrame = CTimer::GetFrameCounter();
+		ps3HornTap = false;
+		if(down && !ps3HornWasDown)
+			ps3HornDownAt = now;
+		else if(!down && ps3HornWasDown)
+			ps3HornTap = now - ps3HornDownAt < PS3_HORN_TAP_MS;
+		ps3HornWasDown = down;
+	}
+	honk = down && now - ps3HornDownAt >= PS3_HORN_TAP_MS;
+	return ps3HornTap;
+}
+#endif
 
 bool bAllCarCheat;
 
@@ -1369,6 +1403,16 @@ CAutomobile::ProcessControl(void)
 				ReduceHornCounter();
 		}else{
 			if(UsesSiren()){
+#ifdef __PS3__
+				bool honk;
+				if(PS3_HornTapped(honk)){
+					m_bSirenOrAlarm = !m_bSirenOrAlarm;
+					PS3_Logf("[horn] %s %s (model %d)\n",
+						GetModelIndex() == MI_MRWHOOP ? "jingle" : "siren",
+						m_bSirenOrAlarm ? "on" : "off", GetModelIndex());
+				}
+				m_nCarHornTimer = honk ? 1 : 0;
+#else
 				if(Pads[0].bHornHistory[Pads[0].iCurrHornHistory]){
 					if(Pads[0].bHornHistory[(Pads[0].iCurrHornHistory+4) % 5] &&
 					   Pads[0].bHornHistory[(Pads[0].iCurrHornHistory+3) % 5])
@@ -1381,6 +1425,7 @@ CAutomobile::ProcessControl(void)
 					m_bSirenOrAlarm = !m_bSirenOrAlarm;
 				}else
 					m_nCarHornTimer = 0;
+#endif
 			}else if(GetModelIndex() != MI_VOODOO && !CVehicle::bCheat3 && !carHasNitro){
 				if(!IsAlarmOn()){
 					if(Pads[0].GetHorn())
