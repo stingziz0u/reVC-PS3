@@ -1,6 +1,9 @@
 #include "common.h"
 
 #include "Script.h"
+#ifdef __PS3__
+#include "ps3_platform.h"	// PS3_Logf
+#endif
 #include "ScriptCommands.h"
 
 #include "CarCtrl.h"
@@ -161,7 +164,30 @@ int8 CRunningScript::ProcessCommands1200To1299(int32 command)
 	case COMMAND_GET_HAVOC_CAUSED_BY_PLAYER:
 	{
 		CollectParameters(&m_nIp, 1);
+#ifdef __PS3__
+	{
+		// patch 54: Messing with the Man's chaos meter is the player's
+		// havoc (CPlayerInfo::m_nHavocLevel: +2 a car or ped hit, +10 a
+		// kill, +20 a car blown up...). For bike2's own asks it comes back
+		// x1.75 (Ren: the meter fills too slowly; patch 53 scaled the
+		// kill counts, which bike2 never asks)
+		uint32 havoc = CWorld::Players[ScriptParams[0]].m_nHavocLevel;
+		if (gPS3ChaosMission && strncmp(m_abScriptName, "bike2", 8) == 0) {
+			uint32 counted = havoc * 7 / 4;
+			static uint32 lastLog, lastHavoc;
+			uint32 now = CTimer::GetTimeInMilliseconds();
+			if (havoc != lastHavoc && (now - lastLog > 5000 || now < lastLog)) {
+				lastLog = now;
+				lastHavoc = havoc;
+				PS3_Logf("[script] bike2: havoc %u, counted %u", havoc, counted);
+			}
+			havoc = counted;
+		}
+		ScriptParams[0] = havoc;
+	}
+#else
 		ScriptParams[0] = CWorld::Players[ScriptParams[0]].m_nHavocLevel;
+#endif
 		StoreParameters(&m_nIp, 1);
 		return 0;
 	}

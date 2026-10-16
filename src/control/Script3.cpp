@@ -1,9 +1,6 @@
 #include "common.h"
 
 #include "Script.h"
-#ifdef __PS3__
-#include "ps3_platform.h"	// PS3_Logf
-#endif
 #include "ScriptCommands.h"
 
 #include "Boat.h"
@@ -1244,28 +1241,7 @@ int8 CRunningScript::ProcessCommands600To699(int32 command)
 		return 0;
 	case COMMAND_GET_NUM_OF_MODELS_KILLED_BY_PLAYER:
 		CollectParameters(&m_nIp, 1);
-#ifdef __PS3__
-	{
-		// patch 53: Messing with the Man counts its chaos from these (the
-		// cars blown up, the peds killed, model by model): x1.25, rounded,
-		// for its own asks only (Ren: the meter fills too slowly)
-		int32 model = ScriptParams[0];
-		int32 n = CDarkel::QueryModelsKilledByPlayer(model);
-		if (gPS3ChaosMission && strncmp(m_abScriptName, "bike2", 8) == 0) {
-			int32 scaled = (5 * n + 2) / 4;
-			static uint32 lastLog;
-			uint32 now = CTimer::GetTimeInMilliseconds();
-			if (n > 0 && (now - lastLog > 5000 || now < lastLog)) {
-				lastLog = now;
-				PS3_Logf("[script] bike2: model %d killed %d times, counted %d", model, n, scaled);
-			}
-			n = scaled;
-		}
-		ScriptParams[0] = n;
-	}
-#else
 		ScriptParams[0] = CDarkel::QueryModelsKilledByPlayer(ScriptParams[0]);
-#endif
 		StoreParameters(&m_nIp, 1);
 		return 0;
 	/*
