@@ -563,13 +563,19 @@ CPopulation::AddToPopulation(float minDist, float maxDist, float minDistOffScree
 		if (player && player->InVehicle() && player->m_pMyVehicle->IsTaxi())
 			missionAndWeatherMult = 1.0f;
 	}
-	if (CDarkel::FrenzyOnGoing())
+#ifdef __PS3__
+	// patch 53: Messing with the Man's chaos meter wants peds as a rampage does
+	bool ps3Frenzy = CDarkel::FrenzyOnGoing() || gPS3ChaosMission;
+#else
+	bool ps3Frenzy = CDarkel::FrenzyOnGoing();
+#endif
+	if (ps3Frenzy)
 		missionAndWeatherMult = 1.0f;
 	int selectedMaxPeds = CGame::IsInInterior() ? CPopulation::MaxNumberOfPedsInUseInterior : CPopulation::MaxNumberOfPedsInUse;
 
 	// Yeah, float
 	float maxPossiblePedsForArea = (zoneInfo.pedDensity + zoneInfo.carDensity) * playerInfo->m_fRoadDensity * PedDensityMultiplier
-		* (CDarkel::FrenzyOnGoing() ? 1.f : CIniFile::PedNumberMultiplier) * missionAndWeatherMult;
+		* (ps3Frenzy ? 1.f : CIniFile::PedNumberMultiplier) * missionAndWeatherMult;
 	maxPossiblePedsForArea = Min(maxPossiblePedsForArea, selectedMaxPeds);
 
 	if (ms_nTotalPeds < maxPossiblePedsForArea || addCop) {

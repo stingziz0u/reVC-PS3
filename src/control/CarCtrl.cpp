@@ -17,6 +17,7 @@
 #include "General.h"
 #ifdef __PS3__
 #include "Darkel.h"
+#include "Script.h"
 #endif
 #include "IniFile.h"
 #include "ModelIndices.h"
@@ -152,7 +153,8 @@ CCarCtrl::GenerateOneRandomCar()
 	// cap of 16 cars instead of 7, and half of the cars made of the
 	// rampage's models when it names some (loaded when it starts)
 	int32 ps3FrenzyModels[4], ps3NumFrenzyModels = 0;
-	bool ps3CarFrenzy = CDarkel::PS3_VehicleFrenzy(ps3FrenzyModels, &ps3NumFrenzyModels);
+	// (and Messing with the Man, patch 53: its chaos meter wants cars)
+	bool ps3CarFrenzy = CDarkel::PS3_VehicleFrenzy(ps3FrenzyModels, &ps3NumFrenzyModels) || gPS3ChaosMission;
 	float ps3CarMult = ps3CarFrenzy ? 2.0f : CDarkel::FrenzyOnGoing() ? 1.0f : CIniFile::CarNumberMultiplier;
 	int32 ps3MaxCars = ps3CarFrenzy ? Max(MaxNumberOfCarsInUse, 16) : MaxNumberOfCarsInUse;
 	if (NumRandomCars >= pPlayer->m_nTrafficMultiplier * CarDensityMultiplier * ps3CarMult)

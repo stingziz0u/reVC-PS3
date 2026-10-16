@@ -2173,6 +2173,8 @@ PS3_ScriptCarQuery(CRunningScript *s, const char *what, int32 handle, int32 mark
 	calls = found = 0;
 }
 
+bool gPS3ChaosMission;
+
 // a getter asked about an entity that isn't there: logged, the script goes on
 void
 PS3_ScriptGone(CRunningScript *s, const char *what, int32 handle)
@@ -2629,6 +2631,19 @@ void CTheScripts::Process()
 		return;
 #ifdef __PS3__
 	PS3_ScriptReport();
+	{
+		// patch 53: is Messing with the Man ("bike2") running? Its chaos
+		// meter needs traffic and peds as a rampage does (CarCtrl.cpp,
+		// Population.cpp) and fills 25% faster (Script3.cpp)
+		bool chaos = false;
+		for (CRunningScript *s = pActiveScripts; s; s = s->GetNext())
+			if (s->m_bIsMissionScript && strncmp(s->m_abScriptName, "bike2", 8) == 0)
+				chaos = true;
+		if (chaos != gPS3ChaosMission)
+			PS3_Logf("[script] Messing with the Man %s: rampage traffic and peds %s, chaos meter x1.25 %s",
+			         chaos ? "started" : "over", chaos ? "on" : "off", chaos ? "on" : "off");
+		gPS3ChaosMission = chaos;
+	}
 #endif
 	CommandsExecuted = 0;
 	ScriptsUpdated = 0;
