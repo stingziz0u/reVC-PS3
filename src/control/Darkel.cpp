@@ -15,6 +15,10 @@
 #include "Text.h"
 #include "Vehicle.h"
 #include "GameLogic.h"
+#ifdef __PS3__
+#include "ModelInfo.h"
+#include "Streaming.h"
+#endif
 
 #define FRENZY_ANY_PED -1
 #define FRENZY_ANY_CAR -2
@@ -305,6 +309,16 @@ CDarkel::StartFrenzy(eWeaponType weaponType, int32 time, uint16 kill, int32 mode
 	ModelToKill3 = modelId3;
 	ModelToKill4 = modelId4;
 	pStartMessage = text;
+#ifdef __PS3__
+	{
+		// patch 52: a rampage against some vehicle models: loaded now, so
+		// the traffic can be made of them (CarCtrl.cpp)
+		int32 models[4], n;
+		if (PS3_VehicleFrenzy(models, &n))
+			for (int i = 0; i < n; i++)
+				CStreaming::RequestModel(models[i], STREAMFLAGS_DEPENDENCY);
+	}
+#endif
 
 	if (text == TheText.Get("PAGE_00")) {
 		CDarkel::bProperKillFrenzy = true;
@@ -437,3 +451,24 @@ CDarkel::DealWithWeaponChangeAtEndOfFrenzy()
 		player->RemoveDrivebyAnims();
 	}
 }
+
+#ifdef __PS3__
+bool
+CDarkel::PS3_VehicleFrenzy(int32 *models, int32 *numModels)
+{
+	*numModels = 0;
+	if (!FrenzyOnGoing())
+		return false;
+	if (ModelToKill == FRENZY_ANY_CAR)
+		return true;
+	int32 m[4] = { ModelToKill, ModelToKill2, ModelToKill3, ModelToKill4 };
+	for (int i = 0; i < 4; i++) {
+		if (m[i] < 0 || m[i] >= MODELINFOSIZE)
+			continue;
+		CBaseModelInfo *mi = CModelInfo::GetModelInfo(m[i]);
+		if (mi && mi->GetModelType() == MITYPE_VEHICLE)
+			models[(*numModels)++] = m[i];
+	}
+	return *numModels > 0;
+}
+#endif

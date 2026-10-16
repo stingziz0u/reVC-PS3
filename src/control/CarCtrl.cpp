@@ -15,6 +15,9 @@
 #include "Game.h"
 #include "Garages.h"
 #include "General.h"
+#ifdef __PS3__
+#include "Darkel.h"
+#endif
 #include "IniFile.h"
 #include "ModelIndices.h"
 #include "PathFind.h"
@@ -141,10 +144,27 @@ CCarCtrl::GenerateOneRandomCar()
 	CZoneInfo zone;
 	CTheZones::GetZoneInfoForTimeOfDay(&vecTargetPos, &zone);
 	pPlayer->m_nTrafficMultiplier = pPlayer->m_fRoadDensity * zone.carDensity;
+#ifdef __PS3__
+	// patch 52: rampages against vehicles (Ren: a matter of luck to get
+	// enough cars to blow up in time). The peds of a rampage already
+	// ignore the 0.6 of PedNumberMultiplier (Population.cpp); the cars of
+	// any rampage now too, and for a vehicle rampage twice the traffic, a
+	// cap of 16 cars instead of 7, and half of the cars made of the
+	// rampage's models when it names some (loaded when it starts)
+	int32 ps3FrenzyModels[4], ps3NumFrenzyModels = 0;
+	bool ps3CarFrenzy = CDarkel::PS3_VehicleFrenzy(ps3FrenzyModels, &ps3NumFrenzyModels);
+	float ps3CarMult = ps3CarFrenzy ? 2.0f : CDarkel::FrenzyOnGoing() ? 1.0f : CIniFile::CarNumberMultiplier;
+	int32 ps3MaxCars = ps3CarFrenzy ? Max(MaxNumberOfCarsInUse, 16) : MaxNumberOfCarsInUse;
+	if (NumRandomCars >= pPlayer->m_nTrafficMultiplier * CarDensityMultiplier * ps3CarMult)
+		return;
+	if (NumFiretrucksOnDuty + NumAmbulancesOnDuty + NumParkedCars + NumMissionCars + NumLawEnforcerCars + NumRandomCars >= ps3MaxCars)
+		return;
+#else
 	if (NumRandomCars >= pPlayer->m_nTrafficMultiplier * CarDensityMultiplier * CIniFile::CarNumberMultiplier)
 		return;
 	if (NumFiretrucksOnDuty + NumAmbulancesOnDuty + NumParkedCars + NumMissionCars + NumLawEnforcerCars + NumRandomCars >= MaxNumberOfCarsInUse)
 		return;
+#endif
 	CWanted* pWanted = pPlayer->m_pPed->m_pWanted;
 	int carClass;
 	int carModel;
@@ -159,6 +179,17 @@ CCarCtrl::GenerateOneRandomCar()
 		carModel = ChoosePoliceCarModel();
 	}else{
 		carModel = ChooseModel(&zone, &carClass);
+#ifdef __PS3__
+		if (ps3NumFrenzyModels > 0 && CGeneral::GetRandomNumber() & 1) {
+			int32 m = ps3FrenzyModels[CGeneral::GetRandomNumber() % ps3NumFrenzyModels];
+			CBaseModelInfo *mi = CModelInfo::GetModelInfo(m);
+			if (CStreaming::HasModelLoaded(m) && mi && mi->GetModelType() == MITYPE_VEHICLE &&
+			    ((CVehicleModelInfo*)mi)->m_vehicleType == VEHICLE_TYPE_CAR) {
+				carModel = m;
+				carClass = ((CVehicleModelInfo*)mi)->m_vehicleClass;
+			}
+		}
+#endif
 		if (carModel == -1 || (carClass == COPS && pWanted->GetWantedLevel() >= 1))
 			/* All cop spawns with wanted level are handled by condition above. */
 			/* In particular it means that cop cars never spawn if player has wanted level of 1. */
