@@ -1700,6 +1700,7 @@ void CPad::UpdatePads(void)
 
 #if defined(__PS3__) && PS3_STAGE != 1
 	PS3_AutotestFrame();	// the automatic test (USRDIR/autotest.txt), if any
+	PS3_CarSpawnerPad();	// L3 + R3
 #endif
 
 #ifndef MASTER

@@ -1407,7 +1407,7 @@ CAutomobile::ProcessControl(void)
 				bool honk;
 				if(PS3_HornTapped(honk)){
 					m_bSirenOrAlarm = !m_bSirenOrAlarm;
-					PS3_Logf("[horn] %s %s (model %d)\n",
+					PS3_Logf("[horn] %s %s (model %d)",
 						GetModelIndex() == MI_MRWHOOP ? "jingle" : "siren",
 						m_bSirenOrAlarm ? "on" : "off", GetModelIndex());
 				}
