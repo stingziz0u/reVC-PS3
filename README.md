@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.3 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.4 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, but it hasn't had long play-throughs yet. Expect bugs and please
@@ -41,13 +41,25 @@ PS3 layer.
 > (explosions no longer swamp the RSX). It fixes a crash in the Cubans'
 > *Naval Engagement* (a deleted object left in the physics list), and after
 > a crash the game goes back to the XMB instead of freezing the console.
+> 1.4 alpha shows the hidden packages and rampages on the radar and the map
+> (optional), adds a car spawner (L3 + R3), and fixes missions and side
+> jobs: *Vigilante* / *Brown Thunder* criminals that stopped appearing,
+> *Distribution* (the Mr Whoopee jingle and the police sirens didn't switch
+> on with a tap of L3 at 60 fps), the player stuck in the air between
+> crates, and gives the vehicle rampages and *Messing with the Man* the
+> traffic they need (see [Changes from the original](#changes-from-the-original)).
 >
-> **Known issue:** a freeze after crashing a bike at high speed has been
-> reported. 1.2 and 1.3 alpha have fixes for what could cause it (the audio
-> no longer makes the game wait for the disk, the world's sector loops
-> can't run away on bad coordinates, deleted objects are taken out of the
-> physics list), but it hasn't been confirmed fixed. If it happens to you,
-> please send the log.
+> **Known issues:**
+> - A freeze after crashing a bike at high speed has been reported. 1.2 and
+>   1.3 alpha have fixes for what could cause it (the audio no longer makes
+>   the game wait for the disk, the world's sector loops can't run away on
+>   bad coordinates, deleted objects are taken out of the physics list), but
+>   it hasn't been confirmed fixed.
+> - A crash in the audio during *Cabmageddon*, after 2.5 hours of play, not
+>   seen again in a shorter session. 1.4 alpha guards the code it happened in
+>   and logs what it finds there, but it hasn't been confirmed fixed.
+>
+> If either happens to you, please send the log.
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
@@ -69,6 +81,11 @@ PlayStation button icons and the controller picture of the settings page).
   on map*, off by default): the hidden packages in lime green and the
   rampages in blood red, on the radar (the nearest one at its edge when none
   is in range) and the pause menu map. One you pick up (or pass) disappears.
+- **Car spawner**: L3 + R3 together on foot. The vehicle shows as "ID:
+  name" over the subtitles; Left/Right go one by one, L1/R1 by 10 (hold to
+  scroll), X puts you in it, O closes. Boats go on the water in front of you
+  (up to 30 m). Trains, the police helicopter, the planes you can't fly and
+  the RC toys aren't in the list.
 - All the radio stations, and the **MP3 player** station: put `.mp3` files
   in `USRDIR/mp3`.
 - **Skins**: put `.bmp` skins in `USRDIR/skins`, choose them in *Player setup*.
@@ -91,9 +108,31 @@ PlayStation button icons and the controller picture of the settings page).
   `USRDIR/userfiles`. Saves are in the PS3's format: PC saves can't be
   loaded, and the other way round.
 
+## Changes from the original
+
+The PS2/PC game was tuned for the PS2's memory: a few missions are hard
+for that reason alone. reVC-PS3 changes these (everything else plays as
+the original):
+
+- **Vehicle rampages** (blow up N cars of a kind): while one runs, the
+  traffic limits are lifted and the cars of the rampage are asked for, so
+  enough of them come.
+- ***Messing with the Man*** (the bikers' chaos mission): the same traffic
+  as a rampage, and the chaos meter fills 75% faster (the original is slow
+  enough that players look for exploits to finish it).
+- ***Vigilante*** / ***Brown Thunder***: making room for a new criminal no
+  longer deletes the previous criminal's car under the mission script (the
+  criminals stopped appearing and the mission failed).
+- **Horn taps**: a tap of L3 shorter than 250 ms switches the sirens and the
+  Mr Whoopee jingle (*Distribution*), a longer press honks. The original
+  only took presses of 1-3 frames, too short at 60 fps.
+- **Stuck in the air**: when the player is held in the air between objects
+  (crates) for a while, he is put on top of what is under him, or back
+  where he last stood.
+
 ## Installation
 
-1. Install `revc-ps3-1.3-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.4-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
@@ -180,7 +219,7 @@ On Linux or WSL (Ubuntu):
    make -C ps3 verify
    ```
 
-   The result is `ps3/revc-ps3-1.3-alpha.pkg`.
+   The result is `ps3/revc-ps3-1.4-alpha.pkg`.
 
 Other targets: `make -C ps3 DEBUG=1` (debug build with asserts),
 `make -C ps3 FTRACE=1` (function trace of peds, weapons, collision, HUD,
