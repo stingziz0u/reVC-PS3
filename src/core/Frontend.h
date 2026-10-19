@@ -218,6 +218,9 @@ enum eMenuScreen
 #ifdef DETECT_JOYSTICK_MENU
 	MENUPAGE_DETECT_JOYSTICK,
 #endif
+#ifdef __PS3__
+	MENUPAGE_STICK_SETTINGS,	// Gamepad settings > STICK SETTINGS (sensitivity, dead zones)
+#endif
 
 #endif
 	MENUPAGE_OUTRO, // Originally 34, but CFO needs last screen to be empty to count number of menu pages

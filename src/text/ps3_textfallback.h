@@ -21,6 +21,8 @@ static const struct { const char *key; const char *text; } ps3TextFallback[] = {
 	{ "FEC_S3P", "3RD PERSON SENSITIVITY" },	// reVC-PS3's own
 	{ "FEC_S1P", "1ST PERSON SENSITIVITY" },	// reVC-PS3's own
 	{ "FEC_DZL", "LEFT STICK DEAD ZONE" },	// reVC-PS3's own
+	{ "FEC_STK", "STICK SETTINGS" },	// reVC-PS3's own
+	{ "FET_STK", "STICK SETTINGS" },	// reVC-PS3's own
 	{ "FEC_DZR", "RIGHT STICK DEAD ZONE" },	// reVC-PS3's own
 	{ "FEC_SN0", "50%" },	// reVC-PS3's own
 	{ "FEC_SN1", "75%" },	// reVC-PS3's own
