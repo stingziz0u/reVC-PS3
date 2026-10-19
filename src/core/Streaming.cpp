@@ -488,6 +488,17 @@ CStreaming::LoadCdDirectory(const char *dirname, int n)
 		bool bAddToStreaming = false;
 		direntry.offset = LittleU32(direntry.offset);	// .dir is little-endian
 		direntry.size = LittleU32(direntry.size);
+#ifdef __PS3__
+		// USRDIR/mods: a file of the same name replaces the entry. It sits in
+		// its own image, so it is never read together with its neighbours
+		int imgSelector = n<<24;
+		direntry.name[23] = '\0';
+		if(PS3_ModsImgEntry(direntry.name, &direntry.offset, &direntry.size)){
+			imgSelector = PS3_MODS_IMAGE<<24;
+			lastID = -1;
+		}
+		bool ps3Mod = imgSelector != n<<24;
+#endif
 
 		if(direntry.size > (uint32)ms_streamingBufferSize)
 			ms_streamingBufferSize = direntry.size;
@@ -507,7 +518,11 @@ CStreaming::LoadCdDirectory(const char *dirname, int n)
 			}else{
 #ifdef FIX_BUGS
 				// remember which cdimage this came from
+#ifdef __PS3__
+				ms_pExtraObjectsDir->AddItem(direntry, ps3Mod ? PS3_MODS_IMAGE : n);
+#else
 				ms_pExtraObjectsDir->AddItem(direntry, n);
+#endif
 #else
 				ms_pExtraObjectsDir->AddItem(direntry);
 #endif
@@ -544,6 +559,9 @@ CStreaming::LoadCdDirectory(const char *dirname, int n)
 				if(lastID != -1)
 					ms_aInfoForModel[lastID].m_nextID = modelId;
 				lastID = modelId;
+#ifdef __PS3__
+				if(ps3Mod) lastID = -1;
+#endif
 			}
 		}
 	}

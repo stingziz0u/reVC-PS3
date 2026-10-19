@@ -374,13 +374,23 @@ casepath(char const *path, bool checkPathFirst)
 
 extern "C" FILE *__real_fopen(const char *path, const char *mode);
 
+// USRDIR/mods: a file opened for reading may come from there (ps3_mods.cpp)
+static const char*
+modsForRead(const char *abspath, const char *mode)
+{
+	if (abspath == nil || mode == nil || strchr(mode, 'w') || strchr(mode, 'a') || strchr(mode, '+'))
+		return abspath;
+	const char *mod = PS3_ModsOpenPath(abspath);
+	return mod ? mod : abspath;
+}
+
 FILE*
 _fcaseopen(char const *filename, char const *mode)
 {
 	char abs[PS3_PATH_MAX];
 	if (!PS3_ResolvePath(filename, abs, sizeof(abs)))
 		return nil;
-	return __real_fopen(abs, mode);
+	return __real_fopen(modsForRead(abs, mode), mode);
 }
 
 HANDLE
@@ -481,7 +491,7 @@ __wrap_fopen(const char *path, const char *mode)
 	char buf[PS3_PATH_MAX];
 	if (mode && (strchr(mode, 'w') || strchr(mode, 'a')))
 		dirListsDrop();	// it may create a file
-	return __real_fopen(resolveArg(path, buf, sizeof(buf)), mode);
+	return __real_fopen(modsForRead(resolveArg(path, buf, sizeof(buf)), mode), mode);
 }
 
 int

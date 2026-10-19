@@ -74,6 +74,39 @@ static wchar *Sens3rdDraw(bool *disabled, bool userHovering) { return SensDraw(g
 static wchar *Sens1stDraw(bool *disabled, bool userHovering) { return SensDraw(gPS3Sens1st); }
 static void Sens3rdPress(int8 action) { SensPress(&gPS3Sens3rd, action); }
 static void Sens1stPress(int8 action) { SensPress(&gPS3Sens1st, action); }
+// stick dead zones: 5% to 50% in steps of 5 (percent / 5, ps3_pad.cpp),
+// X back to 30%, the game's own
+extern int8 gPS3DeadzoneL, gPS3DeadzoneR;
+static wchar *
+DeadzoneDraw(int8 value)
+{
+	static wchar text[2][16];
+	static int which;
+	char str[16];
+	which ^= 1;
+	sprintf(str, "%d%%", 5*clamp((int)value, 1, 10));
+	AsciiToUnicode(str, text[which]);
+	return text[which];
+}
+static void
+DeadzonePress(int8 *value, int8 action)
+{
+	if (*value < 1 || *value > 10)
+		*value = 6;
+	if (action == FEOPTION_ACTION_LEFT && *value > 1)
+		(*value)--;
+	else if (action == FEOPTION_ACTION_RIGHT && *value < 10)
+		(*value)++;
+	else if (action == FEOPTION_ACTION_SELECT)
+		*value = 6;	// 30%
+	else
+		return;
+	FrontEndMenuManager.SaveSettings();
+}
+static wchar *DeadzoneLDraw(bool *disabled, bool userHovering) { return DeadzoneDraw(gPS3DeadzoneL); }
+static wchar *DeadzoneRDraw(bool *disabled, bool userHovering) { return DeadzoneDraw(gPS3DeadzoneR); }
+static void DeadzoneLPress(int8 action) { DeadzonePress(&gPS3DeadzoneL, action); }
+static void DeadzoneRPress(int8 action) { DeadzonePress(&gPS3DeadzoneR, action); }
 #ifdef RW_PS3_RSX
 #include "src/ps3/rwps3.h"
 // Display menu: how much of the TV the picture covers (overscan), 50..100 %
@@ -817,13 +850,14 @@ CMenuScreenCustom aScreens[] = {
 		MENUACTION_CTRLCONFIG,		"FEC_CCF", { nil, SAVESLOT_NONE, MENUPAGE_CONTROLLER_SETTINGS }, 40, 76, MENUALIGN_LEFT,
 		MENUACTION_CTRLDISPLAY,		"FEC_CDP", { nil, SAVESLOT_NONE, MENUPAGE_CONTROLLER_SETTINGS }, 0, 0, MENUALIGN_LEFT,
 		INVERT_PAD_SELECTOR
-#ifdef __PS3__	// the camera is the pad's; no vibration on the PS3 port
+#ifdef __PS3__	// the camera is the pad's
 		FREE_CAM_TOGGLE
 		MENUACTION_CFO_DYNAMIC, "FEC_S3P", { new CCFODynamic((int8*)&gPS3Sens3rd, "Controller", "Sens3rdPct5", Sens3rdDraw, Sens3rdPress) }, 0, 0, MENUALIGN_LEFT,
 		MENUACTION_CFO_DYNAMIC, "FEC_S1P", { new CCFODynamic((int8*)&gPS3Sens1st, "Controller", "Sens1stPct5", Sens1stDraw, Sens1stPress) }, 0, 0, MENUALIGN_LEFT,
-#else
-		MENUACTION_CTRLVIBRATION,	"FEC_VIB", { nil, SAVESLOT_NONE, MENUPAGE_CONTROLLER_SETTINGS }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_DYNAMIC, "FEC_DZL", { new CCFODynamic((int8*)&gPS3DeadzoneL, "Controller", "DeadzoneLPct5", DeadzoneLDraw, DeadzoneLPress) }, 0, 0, MENUALIGN_LEFT,
+		MENUACTION_CFO_DYNAMIC, "FEC_DZR", { new CCFODynamic((int8*)&gPS3DeadzoneR, "Controller", "DeadzoneRPct5", DeadzoneRDraw, DeadzoneRPress) }, 0, 0, MENUALIGN_LEFT,
 #endif
+		MENUACTION_CTRLVIBRATION,	"FEC_VIB", { nil, SAVESLOT_NONE, MENUPAGE_CONTROLLER_SETTINGS }, 0, 0, MENUALIGN_LEFT,
 		SELECT_CONTROLLER_TYPE
 		MENUACTION_GOBACK,		"FEDS_TB", { nil, SAVESLOT_NONE, MENUPAGE_NONE }, 0, 0, MENUALIGN_LEFT,
 	},

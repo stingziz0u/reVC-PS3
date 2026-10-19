@@ -74,7 +74,8 @@ PlayStation button icons and the controller picture of the settings page).
   *Options > Graphics > Frame rate*. Always in sync with the TV (no tearing).
 - PS2-style controls (Vice City's PS2 setup) with lock-on aiming, pad setups,
   inverted look, free camera, third and first person sensitivity, 20% to
-  200% in steps of 5 (*Controller setup > Gamepad settings*).
+  200% in steps of 5, stick dead zones 5% to 50% and vibration
+  (*Controller setup > Gamepad settings*).
   PlayStation buttons in the on-screen help.
 - The pause menu **map**: L1 shows the legend, X sets a waypoint.
 - **Collectibles on the map** (*Display > Hidden packages / Rampages / Unique
@@ -159,13 +160,24 @@ the original):
 
 ## Mods
 
+**`USRDIR/mods`**, like a mod loader on the PC: a file put there (in any
+subfolder, any letter case) is used instead of the game's file with the same
+name, whether that one is loose (`hud.txd`, `handling.cfg`, `main.scm`...)
+or inside `gta3.img` (`weapons.txd`, `infernus.dff`...). Nothing has to be
+rebuilt: take a mod's files out of its folder or delete them and the
+original ones are back. If two files have the same name, the one whose path
+comes first in alphabetical order is used. The log lists every file
+replaced (`[mods]` lines). Files in `USRDIR` itself (`reVC.ini`, settings,
+logs), `userfiles` and `mp3` are never replaced. `.img` files inside `mods`
+aren't read: take the files out of them with an IMG tool.
+
 Anything made for the PC version of GTA Vice City as data files works:
 
-- TXD textures (loose in `models`/`txd`, or inside `gta3.img` with an IMG
-  tool on the PC, then copy `gta3.img` and `gta3.dir`): HD loading screens,
-  HUD, fonts, vehicles, peds, buildings. All PC formats are read
-  (palettized, 16/32 bit, DXT1/3/5).
-- DFF models in GTA Vice City PC format, inside `gta3.img`.
+- TXD textures (in `mods`, loose in `models`/`txd`, or inside `gta3.img`
+  with an IMG tool on the PC, then copy `gta3.img` and `gta3.dir`): HD
+  loading screens, HUD, fonts, vehicles, peds, buildings. All PC formats are
+  read (palettized, 16/32 bit, DXT1/3/5).
+- DFF models in GTA Vice City PC format, in `mods` or inside `gta3.img`.
 - Data files (`handling.cfg`, `carcols.dat`, `timecyc.dat`, `gta_vc.dat`...)
   and a modified `main.scm`.
 
