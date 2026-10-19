@@ -74,7 +74,8 @@ PlayStation button icons and the controller picture of the settings page).
   *Options > Graphics > Frame rate*. Always in sync with the TV (no tearing).
 - PS2-style controls (Vice City's PS2 setup) with lock-on aiming, pad setups,
   inverted look, free camera, third and first person sensitivity, 20% to
-  200% in steps of 5, stick dead zones 5% to 50% and vibration
+  200% in steps of 5, stick dead zones (left 5% to 70%; right DEFAULT or 5%
+  to 70%, where the camera starts turning) and vibration
   (*Controller setup > Gamepad settings*).
   PlayStation buttons in the on-screen help.
 - The pause menu **map**: L1 shows the legend, X sets a waypoint.
