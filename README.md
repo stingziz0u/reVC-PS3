@@ -73,8 +73,8 @@ PlayStation button icons and the controller picture of the settings page).
 - **30 fps** by default (the rate the game was made for) or **60 fps**:
   *Options > Graphics > Frame rate*. Always in sync with the TV (no tearing).
 - PS2-style controls (Vice City's PS2 setup) with lock-on aiming, pad setups,
-  inverted look, free camera, third and first person sensitivity
-  (*Controller setup > Gamepad settings*).
+  inverted look, free camera, third and first person sensitivity, 50% to
+  200% in steps of 5 (*Controller setup > Gamepad settings*).
   PlayStation buttons in the on-screen help.
 - The pause menu **map**: L1 shows the legend, X sets a waypoint.
 - **Collectibles on the map** (*Display > Hidden packages / Rampages / Unique

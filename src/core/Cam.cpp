@@ -1338,11 +1338,11 @@ float fFalloff = 3.0f;
 float fStickSens = 0.01f;
 #ifdef __PS3__
 // Gamepad settings: right stick sensitivity, third person (on foot and in a
-// vehicle) and first person (aiming, sniper, rocket, look around). An index
-// into gPS3SensMult, saved in reVC.ini.
-int8 gPS3Sens3rd = 2, gPS3Sens1st = 2;
-static const float gPS3SensMult[] = { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f };
-static float PS3_SensMult(int8 i) { return gPS3SensMult[clamp((int)i, 0, (int)ARRAY_SIZE(gPS3SensMult) - 1)]; }
+// vehicle) and first person (aiming, sniper, rocket, look around). An index,
+// saved in reVC.ini.
+// 50% to 200% in steps of 5 (index 0..30, 10 = 100%)
+int8 gPS3Sens3rd = 10, gPS3Sens1st = 10;
+static float PS3_SensMult(int8 i) { return (50 + 5*clamp((int)i, 0, 30)) / 100.0f; }
 #define PS3_SENS_3RD * PS3_SensMult(gPS3Sens3rd)
 #define PS3_SENS_1ST * PS3_SensMult(gPS3Sens1st)
 #else
