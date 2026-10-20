@@ -806,6 +806,11 @@ CMenuManager::DisplayHelperText(char *text)
 		default:
 			if (aScreens[m_nCurrScreen].m_aEntries[m_nCurrOption].m_Action == MENUACTION_NO)
 				return;
+#ifdef __PS3__
+			// not under the gamepad picture
+			if (m_nCurrScreen == MENUPAGE_CONTROLLER_SETTINGS)
+				return;
+#endif
 
 			if (aScreens[m_nCurrScreen].m_aEntries[m_nCurrOption].m_Action == MENUACTION_MUSICVOLUME ||
 				aScreens[m_nCurrScreen].m_aEntries[m_nCurrOption].m_Action == MENUACTION_SFXVOLUME) {
@@ -4040,7 +4045,12 @@ CMenuManager::ProcessList(bool &optionSelected, bool &goBack)
 		m_bShowMouse = 0;
 		optionSelected = true;
 	}
+#ifdef __PS3__
+	// no keyboard: square clears the binding (FET_CIG, ps3_textfallback.h)
+	if ((CPad::GetPad(0)->GetBackspaceJustDown() || CPad::GetPad(0)->GetSquareJustDown()) && m_nCurrScreen == MENUPAGE_KEYBOARD_CONTROLS && !field_159) {
+#else
 	if (CPad::GetPad(0)->GetBackspaceJustDown() && m_nCurrScreen == MENUPAGE_KEYBOARD_CONTROLS && !field_159) {
+#endif
 		if (m_nCurrExLayer == HOVEROPTION_LIST) {
 			m_nHoverOption = HOVEROPTION_NOT_HOVERING;
 			m_bWaitingForNewKeyBind = true;
@@ -5932,7 +5942,7 @@ CMenuManager::PrintController(void)
 	const float CONTROLLER_SIZE_Y = 175.2f;
 	const float CONTROLLER_POS_X = (DEFAULT_SCREEN_WIDTH - CONTROLLER_SIZE_X) / 2.0f;
 #ifdef __PS3__
-	const float CONTROLLER_POS_Y = 270.0f;	// below the page's options (two more since 1.1.2)
+	const float CONTROLLER_POS_Y = 255.0f;	// below the page's options (Ren: a little higher than 270)
 #else
 	const float CONTROLLER_POS_Y = 220.0f;
 #endif
