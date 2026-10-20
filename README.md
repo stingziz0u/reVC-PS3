@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.4 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.5 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, but it hasn't had long play-throughs yet. Expect bugs and please
@@ -48,6 +48,18 @@ PS3 layer.
 > on with a tap of L3 at 60 fps), the player stuck in the air between
 > crates, and gives the vehicle rampages and *Messing with the Man* the
 > traffic they need (see [Changes from the original](#changes-from-the-original)).
+> 1.5 alpha adds the unique jumps and store robberies to the collectibles
+> on the map, stick dead zones (from the game's 30%) on a new *Stick
+> settings* page, a vibration option, the `mods` folder (files that replace
+> the game's, loose or inside the .img), and only pad 1 plays (pads 2-4 are
+> ignored, as on the PS2). It fixes the static on the skid sounds after a
+> long game and a crash in the audio, both from a bug of the PC game that
+> wrote past the end of the sound queue, a crash opening the map after a
+> while (video memory running out), the green blocks on the map, and the PC
+> keyboard and mouse help texts left in the menus. Textures that don't fit
+> in video memory stay as DXT instead of showing white, the right stick
+> sensitivity goes down to 20%, and the car spawner is off unless
+> `USRDIR/carspawner.txt` exists.
 >
 > **Known issues:**
 > - A freeze after crashing a bike at high speed has been reported. 1.2 and
@@ -56,10 +68,15 @@ PS3 layer.
 >   bad coordinates, deleted objects are taken out of the physics list), but
 >   it hasn't been confirmed fixed.
 > - A crash in the audio during *Cabmageddon*, after 2.5 hours of play, not
->   seen again in a shorter session. 1.4 alpha guards the code it happened in
->   and logs what it finds there, but it hasn't been confirmed fixed.
+>   seen again in a shorter session. 1.5 alpha fixes a bug that writes past
+>   the end of the sound queue after long sessions (found in re3-PS3, where
+>   it crashed in the same place), likely its cause, but it hasn't been
+>   confirmed fixed.
+> - Vibration: the option is there, but the pad didn't vibrate in the tests
+>   (the console takes the commands). Check that *Controller Vibration* is
+>   on in the XMB settings.
 >
-> If either happens to you, please send the log.
+> If one of the crashes or freezes happens to you, please send the log.
 
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
@@ -139,7 +156,7 @@ the original):
 
 ## Installation
 
-1. Install `revc-ps3-1.4-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.5-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
@@ -239,7 +256,7 @@ On Linux or WSL (Ubuntu):
    make -C ps3 verify
    ```
 
-   The result is `ps3/revc-ps3-1.4-alpha.pkg`.
+   The result is `ps3/revc-ps3-1.5-alpha.pkg`.
 
 Other targets: `make -C ps3 DEBUG=1` (debug build with asserts),
 `make -C ps3 FTRACE=1` (function trace of peds, weapons, collision, HUD,
