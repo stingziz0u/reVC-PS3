@@ -843,8 +843,18 @@ void CGame::Process(void)
 	CCutsceneMgr::Update();
 
 	PS3_GAME_STEP("FrontEndMenuManager.Process");
+#ifdef __PS3__
+	{
+		extern void PS3_MenuWatch(bool processed);
+		bool menuProcessed = !CCutsceneMgr::IsCutsceneProcessing() && !CTimer::GetIsCodePaused();
+		if (menuProcessed)
+			FrontEndMenuManager.Process();
+		PS3_MenuWatch(menuProcessed);
+	}
+#else
 	if (!CCutsceneMgr::IsCutsceneProcessing() && !CTimer::GetIsCodePaused())
 		FrontEndMenuManager.Process();
+#endif
 
 	PS3_GAME_STEP("CTheZones::Update");
 	CTheZones::Update();
