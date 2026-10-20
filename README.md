@@ -31,9 +31,6 @@ PS3 layer.
 >   the end of the sound queue after long sessions (found in re3-PS3, where
 >   it crashed in the same place), likely its cause, but it hasn't been
 >   confirmed fixed.
-> - Vibration: the option is there, but the pad didn't vibrate in the tests
->   (the console takes the commands). Check that *Controller Vibration* is
->   on in the XMB settings.
 >
 > If one of the crashes or freezes happens to you, please send the log.
 
