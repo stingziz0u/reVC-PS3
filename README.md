@@ -14,8 +14,9 @@ PS3 layer.
 > **Status: 1.5 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
-> crashes, but it hasn't had long play-throughs yet. Expect bugs and please
-> report them with the log (see [Troubleshooting](#troubleshooting)).
+> crashes, and the game has been played to 100% on a real PS3. Expect bugs
+> anyway and please report them with the log (see
+> [Troubleshooting](#troubleshooting)).
 > Only tested on real consoles, not on RPCS3.
 >
 > 1.1 alpha fixed the crash in the mission *Riot* (the game going back to
