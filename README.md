@@ -19,48 +19,6 @@ PS3 layer.
 > [Troubleshooting](#troubleshooting)).
 > Only tested on real consoles, not on RPCS3.
 >
-> 1.1 alpha fixed the crash in the mission *Riot* (the game going back to
-> the XMB during the fights). 1.1.1 alpha fixes other code that only worked
-> with the PC compiler (unset variables, loops that could freeze the game,
-> compiler optimizations that broke the original code), and the log now
-> records what the game was doing when it crashes or freezes.
-> 1.1.2 alpha fixes a crash (and a full console freeze) from particles
-> (debris, sparks) animated past the end of their texture list, and
-> halves the dust and smoke particles at 60 fps (helicopters near the
-> ground no longer drop the frame rate), adds right stick sensitivity
-> settings, and X on the pause menu map sets a waypoint without closing
-> the map.
-> 1.2 alpha adds graphics options: mipmaps, texture filtering (bilinear,
-> trilinear, anisotropic) and antialiasing (FXAA), and fewer hitches when
-> new areas stream in (textures converted several times faster, spread
-> over frames, and the log written in the background).
-> 1.3 alpha keeps the DXT textures compressed in video memory, where the RSX
-> reads them as they are: 4 times less VRAM, and the flights over the map
-> hold 59-60 fps instead of 55-57 with far fewer hitches. Textures are
-> converted on the PPU's second thread, mip levels use AltiVec, and big
-> smoke and explosion particles right in front of the camera fade out
-> (explosions no longer swamp the RSX). It fixes a crash in the Cubans'
-> *Naval Engagement* (a deleted object left in the physics list), and after
-> a crash the game goes back to the XMB instead of freezing the console.
-> 1.4 alpha shows the hidden packages and rampages on the radar and the map
-> (optional), adds a car spawner (L3 + R3), and fixes missions and side
-> jobs: *Vigilante* / *Brown Thunder* criminals that stopped appearing,
-> *Distribution* (the Mr Whoopee jingle and the police sirens didn't switch
-> on with a tap of L3 at 60 fps), the player stuck in the air between
-> crates, and gives the vehicle rampages and *Messing with the Man* the
-> traffic they need (see [Changes from the original](#changes-from-the-original)).
-> 1.5 alpha adds the unique jumps and store robberies to the collectibles
-> on the map, stick dead zones (from the game's 30%) on a new *Stick
-> settings* page, a vibration option, the `mods` folder (files that replace
-> the game's, loose or inside the .img), and only pad 1 plays (pads 2-4 are
-> ignored, as on the PS2). It fixes the static on the skid sounds after a
-> long game and a crash in the audio, both from a bug of the PC game that
-> wrote past the end of the sound queue, a crash opening the map after a
-> while (video memory running out), the green blocks on the map, and the PC
-> keyboard and mouse help texts left in the menus. Textures that don't fit
-> in video memory stay as DXT instead of showing white, the right stick
-> sensitivity goes down to 20%, and the car spawner is off unless
-> `USRDIR/carspawner.txt` exists.
 >
 > **Known issues:**
 > - A freeze after crashing a bike at high speed has been reported. 1.2 and
