@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.5 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.5.1 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, and the game has been played to 100% on a real PS3. Expect bugs
@@ -50,7 +50,8 @@ PlayStation button icons and the controller picture of the settings page).
   200% in steps of 5 and stick dead zones, 5% to 70% (30% the game's
   own; the right one is also where the camera starts turning), in
   *Controller setup > Gamepad settings > Stick settings*; vibration in
-  *Gamepad settings*.
+  *Gamepad settings*. Pressure-sensitive accelerator and brake, as on the
+  PS2 (DualShock 3).
   PlayStation buttons in the on-screen help.
 - The pause menu **map**: L1 shows the legend, X sets a waypoint.
 - **Collectibles on the map** (*Display > Hidden packages / Rampages / Unique
@@ -112,7 +113,7 @@ the original):
 
 ## Installation
 
-1. Install `revc-ps3-1.5-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.5.1-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
@@ -212,7 +213,7 @@ On Linux or WSL (Ubuntu):
    make -C ps3 verify
    ```
 
-   The result is `ps3/revc-ps3-1.5-alpha.pkg`.
+   The result is `ps3/revc-ps3-1.5.1-alpha.pkg`.
 
 Other targets: `make -C ps3 DEBUG=1` (debug build with asserts),
 `make -C ps3 FTRACE=1` (function trace of peds, weapons, collision, HUD,
