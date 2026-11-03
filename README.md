@@ -60,6 +60,19 @@ The performance work of [reLCS-PS3](https://github.com/stingziz0u/reLCS-PS3)
   play. An empty `USRDIR/logson.txt` turns it on (see
   [Troubleshooting](#troubleshooting)).
 
+Fixes:
+
+- **No more square car lights**: the white boxes drawn at every car's
+  headlights and tail lights are gone, as in reLCS-PS3 (the coronas and the
+  light on the road still are; traffic lights and sirens are unchanged).
+- **Drops on the screen last as they should**: the rain, splash and hydrant
+  water drops and the chainsaw's blood drops on the screen were cut off after
+  2 seconds (the game gives them more time with a counter shared by all the
+  drops, so with several on the screen only one got it, and the blood never
+  did). Each drop now gets its own, runs down the screen and dries up at the
+  end instead of vanishing (up to about 9 seconds for water, 6 for blood),
+  the same at 30 and 60 fps.
+
 ## Features
 
 - Native 720p, rendered on the RSX: tiled colour/depth buffers, compressed

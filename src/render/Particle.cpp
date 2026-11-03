@@ -15,6 +15,13 @@
 bool gPS3SpuParticles = true;
 uint64 gPS3ParticleUs, gPS3SpuPartWaitUs;
 static PS3SpuTask sPartTask;
+// patch 87: the drops on the screen (PS3_ScreenDropStep, before CParticle::Update)
+#define PS3_DROP_RESTS 6	// rests (of 1250 ms more) a water drop gets at most: 9.5 s
+#define PS3_BLOOD_RESTS 3	// and a blood drop: 5.75 s
+#define PS3_DROP_DRY_MS 400	// a drop dries up (gets smaller) in its last 400 ms
+#define PS3_BLOOD_DROPS 32	// blood drops on the screen at most (they live longer now)
+static float sPS3DropClock;	// 30 fps frames gone by
+static int32 sPS3BloodDrops;
 #endif
 #include "TxdStore.h"
 #include "Sprite.h"
@@ -910,6 +917,15 @@ CParticle *CParticle::AddParticle(tParticleType type, CVector const &vecPos, CVe
 	if ( CTimer::GetIsPaused() )
 		return nil;
 
+#ifdef __PS3__
+	if ( type == PARTICLE_BLOODDROP )	// patch 87
+	{
+		if ( sPS3BloodDrops >= PS3_BLOOD_DROPS )
+			return nil;
+		sPS3BloodDrops++;
+	}
+#endif
+
 	if ( ( type == PARTICLE_ENGINE_SMOKE
 		|| type == PARTICLE_ENGINE_SMOKE2
 		|| type == PARTICLE_ENGINE_STEAM
@@ -1164,10 +1180,101 @@ CParticle *CParticle::AddParticle(tParticleType type, CVector const &vecPos, CVe
 	return pParticle;
 }
 
+#ifdef __PS3__
+// patch 87: the drops on the screen (buttzfer's issue: "the water droplets
+// that appear on screen from a hydrant or rain do not persist as long as they
+// should. They show up briefly and cut off too soon"; the chainsaw's blood
+// drops are the same). PARTICLE_WATERDROP (rain, car splash, hydrant water)
+// and PARTICLE_BLOODDROP (chainsaw) live 2 s (particle.cfg). The game gives a
+// water drop a rest every 6th frame (it stops for one frame and gets 1250 ms
+// more), so that one drop on the screen runs down it until it leaves, but the
+// counter is one for all the drops: with 6, 12... of them on the screen, it's
+// always the same one that rests and the rest of them are cut off at 2 s. The
+// blood drops never get one. And the frames are the PS2's 30 fps ones: at 60
+// fps the moves made per frame (the camera pushing the drops) are twice as
+// fast. Here every drop counts its own rests, on a 30 fps clock (5 ticks
+// moving, 1 at rest, as the PS2's frames), up to PS3_DROP_RESTS of them for
+// the water (2 s + 6 x 1.25 s = 9.5 s at most) and PS3_BLOOD_RESTS for the
+// blood (5.75 s), and at the end it dries up (it gets smaller in its last
+// PS3_DROP_DRY_MS) instead of going away all at once.
+// (PS3_DROP_RESTS, PS3_DROP_DRY_MS, PS3_BLOOD_DROPS: at the top of the file)
+
+// the per-frame part of a drop's move, on a 30 fps clock. The drop's own
+// counter is m_nZRotationTimer (no Z rotation for the drops): bits 0-2 the
+// ticks since its last rest, bit 3 resting, bits 4-7 the rests given
+static void
+PS3_ScreenDropStep(CParticle *particle, CVector &vecMoveStep, bool tick, bool water)
+{
+	uint16 st = particle->m_nZRotationTimer;
+	if ( tick )
+	{
+		if ( st & 8 )
+			st &= ~8;
+		else if ( (st & 7) == 4 )
+		{
+			st = (st & ~7) | 8;
+			if ( (st >> 4) < (water ? PS3_DROP_RESTS : PS3_BLOOD_RESTS) )
+			{
+				st += 16;
+				particle->m_nTimeWhenWillBeDestroyed += 1250;
+			}
+		}
+		else
+			st++;
+	}
+	particle->m_nZRotationTimer = st;
+
+	if ( st & 8 )
+	{
+		vecMoveStep = CVector(0.0f, 0.0f, 0.0f);
+		return;
+	}
+
+	// the camera pushing the water drops, as the game does it per 30 fps frame
+	float k30 = CTimer::GetTimeStep() * (30.0f / 50.0f);	// time step 1 = 1/50 s
+	if ( water && k30 > 0.0f && TheCamera.m_CameraAverageSpeed > 0.35f )
+	{
+		float step30 = vecMoveStep.Magnitude() / k30;
+		if ( step30 > 0.5f )
+		{
+			if ( step30 > 0.4f && step30 < 0.8f )
+			{
+				vecMoveStep.x += TheCamera.m_CameraAverageSpeed * 1.5f * k30;
+				vecMoveStep.y += TheCamera.m_CameraAverageSpeed * 1.5f * k30;
+			}
+			else
+			{
+				vecMoveStep.x += CGeneral::GetRandomNumberInRange(0.01f, 0.05f) * k30;
+				vecMoveStep.y += CGeneral::GetRandomNumberInRange(0.01f, 0.05f) * k30;
+			}
+		}
+	}
+}
+
+// 1 while the drop lives, down to 0 in its last PS3_DROP_DRY_MS
+static float
+PS3_ScreenDropDry(CParticle *particle)
+{
+	int32 left = int32(particle->m_nTimeWhenWillBeDestroyed - CTimer::GetTimeInMilliseconds());
+	return left >= PS3_DROP_DRY_MS ? 1.0f : left <= 0 ? 0.0f : float(left) / PS3_DROP_DRY_MS;
+}
+#endif
+
 void CParticle::Update()
 {
 	if ( CTimer::GetIsPaused() )
 		return;
+
+#ifdef __PS3__
+	// patch 87: the drops' 30 fps clock (slower than 30 fps: a tick every frame, as before)
+	sPS3DropClock += CTimer::GetTimeStep() * (30.0f / 50.0f);
+	bool bPS3DropTick = sPS3DropClock >= 1.0f;
+	if ( bPS3DropTick )
+		sPS3DropClock = Min(sPS3DropClock - 1.0f, 0.99f);
+	sPS3BloodDrops = 0;
+	for ( CParticle *p = mod_ParticleSystemManager.m_aParticles[PARTICLE_BLOODDROP].m_pParticles; p; p = p->m_pNext )
+		sPS3BloodDrops++;
+#endif
 
 	CRGBA color(0, 0, 0, 0);
 	
@@ -1229,6 +1336,9 @@ void CParticle::Update()
 					continue;
 				}
 				
+#ifdef __PS3__
+				PS3_ScreenDropStep(particle, vecMoveStep, bPS3DropTick, true);	// patch 87
+#else
 				static uint8 nWaterDropCount;
 
 				if ( nWaterDropCount == 5 )
@@ -1258,10 +1368,15 @@ void CParticle::Update()
 					
 					nWaterDropCount++;
 				}
+#endif
 				
 				if ( vecPos.z <= 1.5f )
 					vecMoveStep.z = 0.0f;
 			}
+#ifdef __PS3__
+			else if ( psystem->m_Type == PARTICLE_BLOODDROP )
+				PS3_ScreenDropStep(particle, vecMoveStep, bPS3DropTick, false);	// patch 87
+#endif
 			
 			if ( psystem->m_Type == PARTICLE_HEATHAZE || psystem->m_Type == PARTICLE_HEATHAZE_IN_DIST )
 			{
@@ -2061,6 +2176,11 @@ RenderParticleSystem(int32 i, uint32 &flags, RwRaster *&prevFrame)
 				
 				stretchTexH += (1.0f - (float)timeLeft ) * psystem->m_vecTextureStretch.y;
 				
+#ifdef __PS3__
+				float ps3Dry = PS3_ScreenDropDry(particle);	// patch 87
+				stretchTexW *= ps3Dry;
+				stretchTexH *= ps3Dry;
+#endif
 				RwRect rect;
 				
 				rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
@@ -2087,6 +2207,11 @@ RenderParticleSystem(int32 i, uint32 &flags, RwRaster *&prevFrame)
 				stretchTexH += (1.0f + (float)timeLeft) * psystem->m_vecTextureStretch.y;
 				stretchTexW += (1.0f - (float)timeLeft) * psystem->m_vecTextureStretch.x;
 
+#ifdef __PS3__
+				float ps3Dry = PS3_ScreenDropDry(particle);	// patch 87
+				stretchTexW *= ps3Dry;
+				stretchTexH *= ps3Dry;
+#endif
 				RwRect rect;
 
 				rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
