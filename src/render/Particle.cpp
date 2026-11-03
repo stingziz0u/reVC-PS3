@@ -4,6 +4,17 @@
 #include "Timer.h"
 #ifdef __PS3__
 #include "ps3_platform.h"
+#include <sys/systime.h>
+#include <malloc.h>
+#include "src/ps3/rwps3.h"			// ringAlloc, im2DDrawQuadsAt
+#include "../../ps3/spu/spuparticles.h"	// the SPU job
+// from res-PS3 (patch 50): the particles' sprites built on an SPU
+// (PS3_ParticlesSpu, at the end of the file). nospuparticles.txt in USRDIR
+// keeps them on the PPU. gPS3ParticleUs: the game thread's time in
+// CParticle::Render, gPS3SpuPartWaitUs: the part of it waiting for the SPU
+bool gPS3SpuParticles = true;
+uint64 gPS3ParticleUs, gPS3SpuPartWaitUs;
+static PS3SpuTask sPartTask;
 #endif
 #include "TxdStore.h"
 #include "Sprite.h"
@@ -678,6 +689,9 @@ void CParticle::Initialise()
 
 void CParticle::Shutdown()
 {
+#ifdef __PS3__
+	PS3_SpuTaskStop(&sPartTask);	// from res-PS3 (patch 50)
+#endif
 	debug("Shutting down CParticle...");
 
 	for ( int32 i = 0; i < MAX_SMOKE_FILES; i++ )
@@ -1935,6 +1949,506 @@ PS3_FxReport(unsigned int frames)
 #ifdef __PS3__
 extern int32 gPS3FxOff;
 #endif
+// One particle system drawn by the PPU, as CParticle::Render always did (from
+// res-PS3 patch 50: out of it, for the systems the SPU doesn't take and for
+// when it's off)
+static void
+RenderParticleSystem(int32 i, uint32 &flags, RwRaster *&prevFrame)
+{
+	tParticleSystemData *psystem = &mod_ParticleSystemManager.m_aParticles[i];
+	bool particleBanned = false;
+	CParticle *particle = psystem->m_pParticles;
+	
+	RwRaster **frames = psystem->m_ppRaster;
+	tParticleType type = psystem->m_Type;
+
+	if ( type == PARTICLE_ENGINE_SMOKE
+		|| type == PARTICLE_ENGINE_SMOKE2
+		|| type == PARTICLE_ENGINE_STEAM
+		|| type == PARTICLE_CARFLAME_SMOKE
+		|| type == PARTICLE_RUBBER_SMOKE
+		|| type == PARTICLE_BURNINGRUBBER_SMOKE
+		|| type == PARTICLE_EXHAUST_FUMES
+		|| type == PARTICLE_CARCOLLISION_DUST )
+	{
+		particleBanned = true;
+	}
+
+	if ( particle )
+	{
+		if ( (flags & DRAW_OPAQUE) != (psystem->Flags & DRAW_OPAQUE)
+			|| (flags & DRAW_DARK) != (psystem->Flags & DRAW_DARK) )
+		{
+			CSprite::FlushSpriteBuffer();
+			
+			if ( psystem->Flags & DRAW_OPAQUE )
+			{
+				RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDSRCALPHA);
+				RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void *)rwBLENDINVSRCALPHA);
+			}
+			else
+			{
+				if ( psystem->Flags & DRAW_DARK )
+					RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDSRCALPHA);
+				else
+					RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDONE);
+
+				RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void *)rwBLENDONE);
+			}
+
+			flags = psystem->Flags;
+		}
+		
+		if ( frames != nil )
+		{
+			RwRaster *curFrame = *frames;
+			if ( curFrame != prevFrame )
+			{
+				CSprite::FlushSpriteBuffer();
+				RwRenderStateSet(rwRENDERSTATETEXTURERASTER, (void *)curFrame);
+				prevFrame = curFrame;
+			}
+		}
+	}
+	
+	while ( particle != nil )
+	{
+		bool canDraw = true;
+
+		if ( particle->m_nAlpha == 0 )
+			canDraw = false;
+		
+		if ( canDraw && psystem->m_nFinalAnimationFrame != 0 && frames != nil )
+		{
+#ifdef __PS3__
+			PS3_ParticleFrameClamp(particle, i, frames);
+#endif
+			RwRaster *curFrame = frames[particle->m_nCurrentFrame];
+			if ( prevFrame != curFrame )
+			{
+				CSprite::FlushSpriteBuffer();
+				RwRenderStateSet(rwRENDERSTATETEXTURERASTER, (void *)curFrame);
+				prevFrame = curFrame;
+			}
+		}
+		
+		if ( canDraw && psystem->Flags & DRAWTOP2D )
+		{
+			float screenZ = (particle->m_vecPosition.z - CDraw::GetNearClipZ())
+				* (CSprite::GetFarScreenZ() - CSprite::GetNearScreenZ())
+				* CDraw::GetFarClipZ()
+				/ ( (CDraw::GetFarClipZ() - CDraw::GetNearClipZ()) * particle->m_vecPosition.z )
+				+ CSprite::GetNearScreenZ();
+			
+			float stretchTexW;
+			float stretchTexH;
+				
+			if ( i == PARTICLE_RAINDROP || i == PARTICLE_RAINDROP_SMALL || i == PARTICLE_RAINDROP_2D )
+			{
+				stretchTexW = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x * (float)particle->m_nCurrentFrame + 63.0f;
+				stretchTexH = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y * (float)particle->m_nCurrentFrame + 63.0f;
+			}
+			else
+			{
+				stretchTexW = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x + 63.0f;
+				stretchTexH = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y + 63.0f;
+			}
+
+			
+			if ( i == PARTICLE_WATERDROP )
+			{
+				int32 timeLeft = (particle->m_nTimeWhenWillBeDestroyed - CTimer::GetTimeInMilliseconds()) / particle->m_nTimeWhenWillBeDestroyed;
+				
+				stretchTexH += (1.0f - (float)timeLeft ) * psystem->m_vecTextureStretch.y;
+				
+				RwRect rect;
+				
+				rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
+				rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
+				rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
+				rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
+				
+				FxType fxtype;
+
+				if ( particle->m_nCurrentFrame != 0 )
+					fxtype = FXTYPE_WATER2;
+				else
+					fxtype = FXTYPE_WATER1;
+	
+				CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, fxtype);
+				
+				canDraw = false;
+			}
+			
+			if ( i == PARTICLE_BLOODDROP )
+			{
+				int32 timeLeft = (particle->m_nTimeWhenWillBeDestroyed - CTimer::GetTimeInMilliseconds()) / particle->m_nTimeWhenWillBeDestroyed;
+				
+				stretchTexH += (1.0f + (float)timeLeft) * psystem->m_vecTextureStretch.y;
+				stretchTexW += (1.0f - (float)timeLeft) * psystem->m_vecTextureStretch.x;
+
+				RwRect rect;
+
+				rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
+				rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
+				rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
+				rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
+				
+				FxType fxtype;
+				
+				if ( particle->m_nCurrentFrame )
+					fxtype = FXTYPE_BLOOD2;
+				else
+					fxtype = FXTYPE_BLOOD1;
+				
+				CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, fxtype);
+				
+				canDraw = false;
+			}
+			
+			if ( i == PARTICLE_HEATHAZE_IN_DIST )
+			{
+				RwRect rect;
+				
+				rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
+				rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH * 0.15f));
+				rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
+				rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH * 0.15f));
+				
+				CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, FXTYPE_HEATHAZE);
+				
+				canDraw = false;
+			}
+			
+			if ( i == PARTICLE_HEATHAZE )
+			{
+				RwRect rect;
+				
+				switch ( TheCamera.GetLookDirection() )
+				{
+					case LOOKING_LEFT:
+						rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x * 2.0f));
+						rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
+						rect.w = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
+						rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
+				
+						break;
+
+					case LOOKING_RIGHT:
+						rect.x = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
+						rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
+						rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x * 4.0f));
+						rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
+				
+						break;
+
+					default:
+						rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
+						rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
+						rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
+						rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
+				
+						break;
+				}
+													 
+				CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, FXTYPE_HEATHAZE);
+				
+				canDraw = false;
+			}
+			
+			if ( canDraw )
+			{
+				if ( particle->m_nRotation != 0 )
+				{
+					CSprite::RenderBufferedOneXLUSprite2D_Rotate_Dimension(
+							particle->m_vecPosition.x,
+							particle->m_vecPosition.y,
+							particle->m_fSize * stretchTexW,
+							particle->m_fSize * stretchTexH,
+							particle->m_Color,
+							particle->m_nColorIntensity,
+							DEGTORAD((float)particle->m_nRotation),
+							particle->m_nAlpha);
+				}
+				else
+				{
+					CSprite::RenderBufferedOneXLUSprite2D(
+							particle->m_vecPosition.x,
+							particle->m_vecPosition.y,
+							particle->m_fSize * stretchTexW,
+							particle->m_fSize * stretchTexH,
+							particle->m_Color,
+							particle->m_nColorIntensity,
+							particle->m_nAlpha);
+				}
+			}
+			
+			canDraw = false;
+		}
+		
+		if ( canDraw )
+		{
+			CVector coors;
+			float w;
+			float h;
+
+			if ( CSprite::CalcScreenCoors(particle->m_vecPosition, &coors, &w, &h, true) )
+			{
+				
+				if ( i == PARTICLE_ENGINE_STEAM
+					|| i == PARTICLE_ENGINE_SMOKE
+					|| i == PARTICLE_ENGINE_SMOKE2
+					|| i == PARTICLE_CARFLAME_SMOKE
+					|| i == PARTICLE_CARCOLLISION_DUST
+					|| i == PARTICLE_EXHAUST_FUMES
+					|| i == PARTICLE_RUBBER_SMOKE
+					|| i == PARTICLE_BURNINGRUBBER_SMOKE )
+				{
+					switch ( TheCamera.GetLookDirection() )
+					{
+						case LOOKING_LEFT:
+						case LOOKING_RIGHT:
+							w += CGeneral::GetRandomNumberInRange(1.0f, 7.5f) * psystem->m_vecTextureStretch.x;
+							h += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y;
+							break;
+
+						default:
+							w += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x;
+							h += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y;
+							break;
+					}
+				}
+				else if ( i == PARTICLE_WATER_HYDRANT )
+				{
+					int32 timeLeft = (particle->m_nTimeWhenWillBeDestroyed - CTimer::GetTimeInMilliseconds()) / particle->m_nTimeWhenWillBeDestroyed;
+				
+					w += (1.0f - (float)timeLeft) * psystem->m_vecTextureStretch.x;
+					h += (1.0f - (float)timeLeft) * psystem->m_vecTextureStretch.y;
+				}
+				else if ( i == PARTICLE_FLYERS )
+				{
+					w += psystem->m_vecTextureStretch.x;
+					h += psystem->m_vecTextureStretch.y;
+					
+					w = Max(w, 12.0f);
+					h = Max(h, 12.0f);
+				}
+				else
+				{
+					w += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x;
+					h += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y;
+				}
+				
+#ifdef __PS3__
+				uint8 ps3Alpha = particle->m_nAlpha;
+				if ( (i == PARTICLE_WATER_HYDRANT
+						|| (!particleBanned || SCREEN_WIDTH * fParticleScaleLimit >= w)
+						&& SCREEN_HEIGHT * fParticleScaleLimit >= h)
+					&& PS3_FxQuad(i, particle->m_fSize * w, particle->m_fSize * h, coors.x, coors.y, &particle->m_nAlpha) )
+#else
+				if ( i == PARTICLE_WATER_HYDRANT
+						|| (!particleBanned || SCREEN_WIDTH * fParticleScaleLimit >= w)
+						&& SCREEN_HEIGHT * fParticleScaleLimit >= h )
+#endif
+				{
+					if ( i == PARTICLE_WATER_HYDRANT )
+					{
+						RwRect rect;
+						
+						if ( w > 0.0f )
+						{
+							rect.x = int32(coors.x - SCREEN_STRETCH_X(particle->m_fSize * w));
+							rect.w = int32(coors.x + SCREEN_STRETCH_X(particle->m_fSize * w));
+						}
+						else
+						{
+							rect.w = int32(coors.x - SCREEN_STRETCH_X(particle->m_fSize * w));
+							rect.x = int32(coors.x + SCREEN_STRETCH_X(particle->m_fSize * w));
+						}
+						
+						if ( h > 0.0f )
+						{
+							rect.y = int32(coors.y - SCREEN_STRETCH_Y(particle->m_fSize * h));
+							rect.h = int32(coors.y + SCREEN_STRETCH_Y(particle->m_fSize * h));
+						}
+						else
+						{
+							rect.h = int32(coors.y - SCREEN_STRETCH_Y(particle->m_fSize * h));
+							rect.y = int32(coors.y + SCREEN_STRETCH_Y(particle->m_fSize * h));
+						}
+						
+						float screenZ = (coors.z - CDraw::GetNearClipZ())
+							* (CSprite::GetFarScreenZ() - CSprite::GetNearScreenZ()) * CDraw::GetFarClipZ()
+							/ ( (CDraw::GetFarClipZ() - CDraw::GetNearClipZ()) * coors.z ) + CSprite::GetNearScreenZ();
+
+						CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, FXTYPE_SPLASH1);
+					}
+					else
+					{
+						if ( particle->m_nRotation != 0 && i != PARTICLE_BEASTIE )
+						{					
+							CSprite::RenderBufferedOneXLUSprite_Rotate_Dimension(coors.x, coors.y, coors.z,
+									particle->m_fSize * w, particle->m_fSize * h,
+									particle->m_Color.red,
+									particle->m_Color.green,
+									particle->m_Color.blue,
+									particle->m_nColorIntensity,
+									1.0f / coors.z,
+									DEGTORAD((float)particle->m_nRotation),
+									particle->m_nAlpha);
+						}
+						else if ( psystem->Flags & SCREEN_TRAIL )
+						{
+							float fRotation;
+							float fTrailLength;
+							
+							if ( particle->m_fZGround == 0.0f )
+							{
+								fTrailLength = 0.0f;
+								fRotation = 0.0f;
+							}
+							else
+							{
+								CVector2D vecDist
+								(
+									coors.x - particle->m_fZGround,
+									coors.y - particle->m_fExpansionRate
+								);
+
+								float fDist = vecDist.Magnitude();
+
+								fTrailLength = fDist;
+								
+								float fRot = Asin(vecDist.x / fDist);
+
+								fRotation = fRot;
+
+								if ( vecDist.y < 0.0f )
+									fRotation = -1.0f * fRot + DEGTORAD(180.0f);
+								
+								float fSpeed = particle->m_vecVelocity.Magnitude();
+								
+								float fNewTrailLength = fSpeed * CTimer::GetTimeStep() * w * 2.0f;
+								
+								if ( fDist > fNewTrailLength )
+									fTrailLength = fNewTrailLength;
+							}
+							
+							CSprite::RenderBufferedOneXLUSprite_Rotate_Dimension(coors.x, coors.y, coors.z,
+									particle->m_fSize * w,
+									particle->m_fSize * h + fTrailLength * psystem->m_fTrailLengthMultiplier,
+									particle->m_Color.red,
+									particle->m_Color.green,
+									particle->m_Color.blue,
+									particle->m_nColorIntensity,
+									1.0f / coors.z,
+									fRotation,
+									particle->m_nAlpha);
+			
+							particle->m_fZGround = coors.x;				// WTF ?
+							particle->m_fExpansionRate =  coors.y;		// WTF ?
+						}
+						else if ( psystem->Flags & SPEED_TRAIL )
+						{
+							CVector vecPrevPos = particle->m_vecPosition - particle->m_vecVelocity;
+							float fRotation;
+							float fTrailLength;
+							CVector vecScreenPosition;
+							
+							if ( CSprite::CalcScreenCoors(vecPrevPos, &vecScreenPosition, &fTrailLength, &fRotation, true) )
+							{
+								CVector2D vecDist
+								(
+									coors.x - vecScreenPosition.x,
+									coors.y - vecScreenPosition.y
+								);
+								
+								float fDist = vecDist.Magnitude();
+								
+								fTrailLength = fDist;
+								
+								float fRot = Asin(vecDist.x / fDist);
+								
+								fRotation = fRot;
+								
+								if ( vecDist.y < 0.0f )
+									fRotation = -1.0f * fRot + DEGTORAD(180.0f);
+							}
+							else
+							{
+								fRotation = 0.0f;
+								fTrailLength = 0.0f;
+							}
+							
+							CSprite::RenderBufferedOneXLUSprite_Rotate_Dimension(coors.x, coors.y, coors.z,
+									particle->m_fSize * w,
+									particle->m_fSize * h + fTrailLength * psystem->m_fTrailLengthMultiplier,
+									particle->m_Color.red,
+									particle->m_Color.green,
+									particle->m_Color.blue,
+									particle->m_nColorIntensity,
+									1.0f / coors.z,
+									fRotation,
+									particle->m_nAlpha);
+						}
+						else if ( psystem->Flags & VERT_TRAIL )
+						{
+							float fTrailLength = fabsf(particle->m_vecVelocity.z * 10.0f);
+
+							CSprite::RenderBufferedOneXLUSprite(coors.x, coors.y, coors.z,
+									particle->m_fSize * w,
+									(particle->m_fSize + fTrailLength * psystem->m_fTrailLengthMultiplier) * h,
+									particle->m_Color.red,
+									particle->m_Color.green,
+									particle->m_Color.blue,
+									particle->m_nColorIntensity,
+									1.0f / coors.z,
+									particle->m_nAlpha);
+						}
+						else if ( i == PARTICLE_RAINDROP_SMALL )
+						{
+							CSprite::RenderBufferedOneXLUSprite(coors.x, coors.y, coors.z,
+									particle->m_fSize * w * 0.05f,
+									particle->m_fSize * h,
+									particle->m_Color.red,
+									particle->m_Color.green,
+									particle->m_Color.blue,
+									particle->m_nColorIntensity,
+									1.0f / coors.z,
+									particle->m_nAlpha);
+						}
+						/*else if ( i == PARTICLE_BOAT_WAKE )*/
+						else
+						{							
+							CSprite::RenderBufferedOneXLUSprite(coors.x, coors.y, coors.z,
+									particle->m_fSize * w,
+									particle->m_fSize * h,
+									particle->m_Color.red,
+									particle->m_Color.green,
+									particle->m_Color.blue,
+									particle->m_nColorIntensity,
+									1.0f / coors.z,
+									particle->m_nAlpha);
+						}
+					}
+#ifdef __PS3__
+					particle->m_nAlpha = ps3Alpha;	// the fade is only for this frame
+#endif
+				}
+			}
+		}
+		
+		particle = particle->m_pNext;
+	}
+
+	CSprite::FlushSpriteBuffer();
+
+}
+
+#ifdef __PS3__
+static bool PS3_ParticlesSpu(uint32 &flags, RwRaster *&prevFrame);
+#endif
+
 void CParticle::Render()
 {
 #ifdef __PS3__
@@ -1955,497 +2469,15 @@ void CParticle::Render()
 	
 	RwRaster *prevFrame = nil;
 	
+#ifdef __PS3__
+	uint64 ps3T0 = sysGetSystemTime();
+	if (!(gPS3SpuParticles && PS3_ParticlesSpu(flags, prevFrame)))
+#endif
 	for ( int32 i = 0; i < MAX_PARTICLES; i++ )
-	{
-		tParticleSystemData *psystem = &mod_ParticleSystemManager.m_aParticles[i];
-		bool particleBanned = false;
-		CParticle *particle = psystem->m_pParticles;
-		
-		RwRaster **frames = psystem->m_ppRaster;
-		tParticleType type = psystem->m_Type;
-
-		if ( type == PARTICLE_ENGINE_SMOKE
-			|| type == PARTICLE_ENGINE_SMOKE2
-			|| type == PARTICLE_ENGINE_STEAM
-			|| type == PARTICLE_CARFLAME_SMOKE
-			|| type == PARTICLE_RUBBER_SMOKE
-			|| type == PARTICLE_BURNINGRUBBER_SMOKE
-			|| type == PARTICLE_EXHAUST_FUMES
-			|| type == PARTICLE_CARCOLLISION_DUST )
-		{
-			particleBanned = true;
-		}
-
-		if ( particle )
-		{
-			if ( (flags & DRAW_OPAQUE) != (psystem->Flags & DRAW_OPAQUE)
-				|| (flags & DRAW_DARK) != (psystem->Flags & DRAW_DARK) )
-			{
-				CSprite::FlushSpriteBuffer();
-				
-				if ( psystem->Flags & DRAW_OPAQUE )
-				{
-					RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDSRCALPHA);
-					RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void *)rwBLENDINVSRCALPHA);
-				}
-				else
-				{
-					if ( psystem->Flags & DRAW_DARK )
-						RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDSRCALPHA);
-					else
-						RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDONE);
-	
-					RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void *)rwBLENDONE);
-				}
-
-				flags = psystem->Flags;
-			}
-			
-			if ( frames != nil )
-			{
-				RwRaster *curFrame = *frames;
-				if ( curFrame != prevFrame )
-				{
-					CSprite::FlushSpriteBuffer();
-					RwRenderStateSet(rwRENDERSTATETEXTURERASTER, (void *)curFrame);
-					prevFrame = curFrame;
-				}
-			}
-		}
-		
-		while ( particle != nil )
-		{
-			bool canDraw = true;
-
-			if ( particle->m_nAlpha == 0 )
-				canDraw = false;
-			
-			if ( canDraw && psystem->m_nFinalAnimationFrame != 0 && frames != nil )
-			{
+		RenderParticleSystem(i, flags, prevFrame);
 #ifdef __PS3__
-				PS3_ParticleFrameClamp(particle, i, frames);
+	gPS3ParticleUs += sysGetSystemTime() - ps3T0;
 #endif
-				RwRaster *curFrame = frames[particle->m_nCurrentFrame];
-				if ( prevFrame != curFrame )
-				{
-					CSprite::FlushSpriteBuffer();
-					RwRenderStateSet(rwRENDERSTATETEXTURERASTER, (void *)curFrame);
-					prevFrame = curFrame;
-				}
-			}
-			
-			if ( canDraw && psystem->Flags & DRAWTOP2D )
-			{
-				float screenZ = (particle->m_vecPosition.z - CDraw::GetNearClipZ())
-					* (CSprite::GetFarScreenZ() - CSprite::GetNearScreenZ())
-					* CDraw::GetFarClipZ()
-					/ ( (CDraw::GetFarClipZ() - CDraw::GetNearClipZ()) * particle->m_vecPosition.z )
-					+ CSprite::GetNearScreenZ();
-				
-				float stretchTexW;
-				float stretchTexH;
-					
-				if ( i == PARTICLE_RAINDROP || i == PARTICLE_RAINDROP_SMALL || i == PARTICLE_RAINDROP_2D )
-				{
-					stretchTexW = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x * (float)particle->m_nCurrentFrame + 63.0f;
-					stretchTexH = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y * (float)particle->m_nCurrentFrame + 63.0f;
-				}
-				else
-				{
-					stretchTexW = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x + 63.0f;
-					stretchTexH = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y + 63.0f;
-				}
-
-				
-				if ( i == PARTICLE_WATERDROP )
-				{
-					int32 timeLeft = (particle->m_nTimeWhenWillBeDestroyed - CTimer::GetTimeInMilliseconds()) / particle->m_nTimeWhenWillBeDestroyed;
-					
-					stretchTexH += (1.0f - (float)timeLeft ) * psystem->m_vecTextureStretch.y;
-					
-					RwRect rect;
-					
-					rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
-					rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
-					rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
-					rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
-					
-					FxType fxtype;
-
-					if ( particle->m_nCurrentFrame != 0 )
-						fxtype = FXTYPE_WATER2;
-					else
-						fxtype = FXTYPE_WATER1;
-		
-					CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, fxtype);
-					
-					canDraw = false;
-				}
-				
-				if ( i == PARTICLE_BLOODDROP )
-				{
-					int32 timeLeft = (particle->m_nTimeWhenWillBeDestroyed - CTimer::GetTimeInMilliseconds()) / particle->m_nTimeWhenWillBeDestroyed;
-					
-					stretchTexH += (1.0f + (float)timeLeft) * psystem->m_vecTextureStretch.y;
-					stretchTexW += (1.0f - (float)timeLeft) * psystem->m_vecTextureStretch.x;
-
-					RwRect rect;
-
-					rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
-					rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
-					rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
-					rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH));
-					
-					FxType fxtype;
-					
-					if ( particle->m_nCurrentFrame )
-						fxtype = FXTYPE_BLOOD2;
-					else
-						fxtype = FXTYPE_BLOOD1;
-					
-					CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, fxtype);
-					
-					canDraw = false;
-				}
-				
-				if ( i == PARTICLE_HEATHAZE_IN_DIST )
-				{
-					RwRect rect;
-					
-					rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
-					rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH * 0.15f));
-					rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * stretchTexW));
-					rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * stretchTexH * 0.15f));
-					
-					CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, FXTYPE_HEATHAZE);
-					
-					canDraw = false;
-				}
-				
-				if ( i == PARTICLE_HEATHAZE )
-				{
-					RwRect rect;
-					
-					switch ( TheCamera.GetLookDirection() )
-					{
-						case LOOKING_LEFT:
-							rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x * 2.0f));
-							rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
-							rect.w = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
-							rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
-					
-							break;
-
-						case LOOKING_RIGHT:
-							rect.x = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
-							rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
-							rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x * 4.0f));
-							rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
-					
-							break;
-
-						default:
-							rect.x = int32(particle->m_vecPosition.x - SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
-							rect.y = int32(particle->m_vecPosition.y - SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
-							rect.w = int32(particle->m_vecPosition.x + SCREEN_STRETCH_X(particle->m_fSize * psystem->m_vecTextureStretch.x));
-							rect.h = int32(particle->m_vecPosition.y + SCREEN_STRETCH_Y(particle->m_fSize * psystem->m_vecTextureStretch.y));
-					
-							break;
-					}
-														 
-					CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, FXTYPE_HEATHAZE);
-					
-					canDraw = false;
-				}
-				
-				if ( canDraw )
-				{
-					if ( particle->m_nRotation != 0 )
-					{
-						CSprite::RenderBufferedOneXLUSprite2D_Rotate_Dimension(
-								particle->m_vecPosition.x,
-								particle->m_vecPosition.y,
-								particle->m_fSize * stretchTexW,
-								particle->m_fSize * stretchTexH,
-								particle->m_Color,
-								particle->m_nColorIntensity,
-								DEGTORAD((float)particle->m_nRotation),
-								particle->m_nAlpha);
-					}
-					else
-					{
-						CSprite::RenderBufferedOneXLUSprite2D(
-								particle->m_vecPosition.x,
-								particle->m_vecPosition.y,
-								particle->m_fSize * stretchTexW,
-								particle->m_fSize * stretchTexH,
-								particle->m_Color,
-								particle->m_nColorIntensity,
-								particle->m_nAlpha);
-					}
-				}
-				
-				canDraw = false;
-			}
-			
-			if ( canDraw )
-			{
-				CVector coors;
-				float w;
-				float h;
-
-				if ( CSprite::CalcScreenCoors(particle->m_vecPosition, &coors, &w, &h, true) )
-				{
-					
-					if ( i == PARTICLE_ENGINE_STEAM
-						|| i == PARTICLE_ENGINE_SMOKE
-						|| i == PARTICLE_ENGINE_SMOKE2
-						|| i == PARTICLE_CARFLAME_SMOKE
-						|| i == PARTICLE_CARCOLLISION_DUST
-						|| i == PARTICLE_EXHAUST_FUMES
-						|| i == PARTICLE_RUBBER_SMOKE
-						|| i == PARTICLE_BURNINGRUBBER_SMOKE )
-					{
-						switch ( TheCamera.GetLookDirection() )
-						{
-							case LOOKING_LEFT:
-							case LOOKING_RIGHT:
-								w += CGeneral::GetRandomNumberInRange(1.0f, 7.5f) * psystem->m_vecTextureStretch.x;
-								h += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y;
-								break;
-
-							default:
-								w += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x;
-								h += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y;
-								break;
-						}
-					}
-					else if ( i == PARTICLE_WATER_HYDRANT )
-					{
-						int32 timeLeft = (particle->m_nTimeWhenWillBeDestroyed - CTimer::GetTimeInMilliseconds()) / particle->m_nTimeWhenWillBeDestroyed;
-					
-						w += (1.0f - (float)timeLeft) * psystem->m_vecTextureStretch.x;
-						h += (1.0f - (float)timeLeft) * psystem->m_vecTextureStretch.y;
-					}
-					else if ( i == PARTICLE_FLYERS )
-					{
-						w += psystem->m_vecTextureStretch.x;
-						h += psystem->m_vecTextureStretch.y;
-						
-						w = Max(w, 12.0f);
-						h = Max(h, 12.0f);
-					}
-					else
-					{
-						w += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.x;
-						h += CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * psystem->m_vecTextureStretch.y;
-					}
-					
-#ifdef __PS3__
-					uint8 ps3Alpha = particle->m_nAlpha;
-					if ( (i == PARTICLE_WATER_HYDRANT
-							|| (!particleBanned || SCREEN_WIDTH * fParticleScaleLimit >= w)
-							&& SCREEN_HEIGHT * fParticleScaleLimit >= h)
-						&& PS3_FxQuad(i, particle->m_fSize * w, particle->m_fSize * h, coors.x, coors.y, &particle->m_nAlpha) )
-#else
-					if ( i == PARTICLE_WATER_HYDRANT
-							|| (!particleBanned || SCREEN_WIDTH * fParticleScaleLimit >= w)
-							&& SCREEN_HEIGHT * fParticleScaleLimit >= h )
-#endif
-					{
-						if ( i == PARTICLE_WATER_HYDRANT )
-						{
-							RwRect rect;
-							
-							if ( w > 0.0f )
-							{
-								rect.x = int32(coors.x - SCREEN_STRETCH_X(particle->m_fSize * w));
-								rect.w = int32(coors.x + SCREEN_STRETCH_X(particle->m_fSize * w));
-							}
-							else
-							{
-								rect.w = int32(coors.x - SCREEN_STRETCH_X(particle->m_fSize * w));
-								rect.x = int32(coors.x + SCREEN_STRETCH_X(particle->m_fSize * w));
-							}
-							
-							if ( h > 0.0f )
-							{
-								rect.y = int32(coors.y - SCREEN_STRETCH_Y(particle->m_fSize * h));
-								rect.h = int32(coors.y + SCREEN_STRETCH_Y(particle->m_fSize * h));
-							}
-							else
-							{
-								rect.h = int32(coors.y - SCREEN_STRETCH_Y(particle->m_fSize * h));
-								rect.y = int32(coors.y + SCREEN_STRETCH_Y(particle->m_fSize * h));
-							}
-							
-							float screenZ = (coors.z - CDraw::GetNearClipZ())
-								* (CSprite::GetFarScreenZ() - CSprite::GetNearScreenZ()) * CDraw::GetFarClipZ()
-								/ ( (CDraw::GetFarClipZ() - CDraw::GetNearClipZ()) * coors.z ) + CSprite::GetNearScreenZ();
-
-							CMBlur::AddRenderFx(Scene.camera, &rect, screenZ, FXTYPE_SPLASH1);
-						}
-						else
-						{
-							if ( particle->m_nRotation != 0 && i != PARTICLE_BEASTIE )
-							{					
-								CSprite::RenderBufferedOneXLUSprite_Rotate_Dimension(coors.x, coors.y, coors.z,
-										particle->m_fSize * w, particle->m_fSize * h,
-										particle->m_Color.red,
-										particle->m_Color.green,
-										particle->m_Color.blue,
-										particle->m_nColorIntensity,
-										1.0f / coors.z,
-										DEGTORAD((float)particle->m_nRotation),
-										particle->m_nAlpha);
-							}
-							else if ( psystem->Flags & SCREEN_TRAIL )
-							{
-								float fRotation;
-								float fTrailLength;
-								
-								if ( particle->m_fZGround == 0.0f )
-								{
-									fTrailLength = 0.0f;
-									fRotation = 0.0f;
-								}
-								else
-								{
-									CVector2D vecDist
-									(
-										coors.x - particle->m_fZGround,
-										coors.y - particle->m_fExpansionRate
-									);
-	
-									float fDist = vecDist.Magnitude();
-	
-									fTrailLength = fDist;
-									
-									float fRot = Asin(vecDist.x / fDist);
-	
-									fRotation = fRot;
-	
-									if ( vecDist.y < 0.0f )
-										fRotation = -1.0f * fRot + DEGTORAD(180.0f);
-									
-									float fSpeed = particle->m_vecVelocity.Magnitude();
-									
-									float fNewTrailLength = fSpeed * CTimer::GetTimeStep() * w * 2.0f;
-									
-									if ( fDist > fNewTrailLength )
-										fTrailLength = fNewTrailLength;
-								}
-								
-								CSprite::RenderBufferedOneXLUSprite_Rotate_Dimension(coors.x, coors.y, coors.z,
-										particle->m_fSize * w,
-										particle->m_fSize * h + fTrailLength * psystem->m_fTrailLengthMultiplier,
-										particle->m_Color.red,
-										particle->m_Color.green,
-										particle->m_Color.blue,
-										particle->m_nColorIntensity,
-										1.0f / coors.z,
-										fRotation,
-										particle->m_nAlpha);
-				
-								particle->m_fZGround = coors.x;				// WTF ?
-								particle->m_fExpansionRate =  coors.y;		// WTF ?
-							}
-							else if ( psystem->Flags & SPEED_TRAIL )
-							{
-								CVector vecPrevPos = particle->m_vecPosition - particle->m_vecVelocity;
-								float fRotation;
-								float fTrailLength;
-								CVector vecScreenPosition;
-								
-								if ( CSprite::CalcScreenCoors(vecPrevPos, &vecScreenPosition, &fTrailLength, &fRotation, true) )
-								{
-									CVector2D vecDist
-									(
-										coors.x - vecScreenPosition.x,
-										coors.y - vecScreenPosition.y
-									);
-									
-									float fDist = vecDist.Magnitude();
-									
-									fTrailLength = fDist;
-									
-									float fRot = Asin(vecDist.x / fDist);
-									
-									fRotation = fRot;
-									
-									if ( vecDist.y < 0.0f )
-										fRotation = -1.0f * fRot + DEGTORAD(180.0f);
-								}
-								else
-								{
-									fRotation = 0.0f;
-									fTrailLength = 0.0f;
-								}
-								
-								CSprite::RenderBufferedOneXLUSprite_Rotate_Dimension(coors.x, coors.y, coors.z,
-										particle->m_fSize * w,
-										particle->m_fSize * h + fTrailLength * psystem->m_fTrailLengthMultiplier,
-										particle->m_Color.red,
-										particle->m_Color.green,
-										particle->m_Color.blue,
-										particle->m_nColorIntensity,
-										1.0f / coors.z,
-										fRotation,
-										particle->m_nAlpha);
-							}
-							else if ( psystem->Flags & VERT_TRAIL )
-							{
-								float fTrailLength = fabsf(particle->m_vecVelocity.z * 10.0f);
-	
-								CSprite::RenderBufferedOneXLUSprite(coors.x, coors.y, coors.z,
-										particle->m_fSize * w,
-										(particle->m_fSize + fTrailLength * psystem->m_fTrailLengthMultiplier) * h,
-										particle->m_Color.red,
-										particle->m_Color.green,
-										particle->m_Color.blue,
-										particle->m_nColorIntensity,
-										1.0f / coors.z,
-										particle->m_nAlpha);
-							}
-							else if ( i == PARTICLE_RAINDROP_SMALL )
-							{
-								CSprite::RenderBufferedOneXLUSprite(coors.x, coors.y, coors.z,
-										particle->m_fSize * w * 0.05f,
-										particle->m_fSize * h,
-										particle->m_Color.red,
-										particle->m_Color.green,
-										particle->m_Color.blue,
-										particle->m_nColorIntensity,
-										1.0f / coors.z,
-										particle->m_nAlpha);
-							}
-							/*else if ( i == PARTICLE_BOAT_WAKE )*/
-							else
-							{							
-								CSprite::RenderBufferedOneXLUSprite(coors.x, coors.y, coors.z,
-										particle->m_fSize * w,
-										particle->m_fSize * h,
-										particle->m_Color.red,
-										particle->m_Color.green,
-										particle->m_Color.blue,
-										particle->m_nColorIntensity,
-										1.0f / coors.z,
-										particle->m_nAlpha);
-							}
-						}
-#ifdef __PS3__
-						particle->m_nAlpha = ps3Alpha;	// the fade is only for this frame
-#endif
-					}
-				}
-			}
-			
-			particle = particle->m_pNext;
-		}
-
-		CSprite::FlushSpriteBuffer();
-
-	}
 	
 	RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void *)FALSE);
 	RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void *)TRUE);
@@ -2453,6 +2485,305 @@ void CParticle::Render()
 	RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDSRCALPHA);
 	RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void *)rwBLENDINVSRCALPHA);
 }
+
+
+#ifdef __PS3__
+// ============================================================================
+// from res-PS3 (patch 50): the sprites on an SPU (ps3/spu/spuparticles.c)
+// ============================================================================
+// CParticle::Render in three steps:
+//  1. the PPU walks the systems as RenderParticleSystem does, with the same
+//     render state and texture frame changes, but records them as commands
+//     and writes one SpuPartSprite per particle (position, sizes, colour, the
+//     kind of sprite, the size limits); the sprites between two state changes
+//     are a batch. Systems drawn on the screen (DRAWTOP2D), that keep screen positions in the
+// particles (SCREEN_TRAIL) and the hydrant's water (a CMBlur effect) are a
+// command "the PPU draws this system" instead.
+//  2. the SPU projects, limits (the PC's fParticleScaleLimit, the PS3 fill
+//     limit) and builds the visible sprites as quads straight into this
+//     frame's vertex ring (spuparticles_ram.txt: into memory here, then
+//     copied, in case the SPU can't write the RSX's memory).
+//  3. the commands are played back: states, the batches' quads in one draw
+//     each, and the PPU's systems.
+// The SPU sprite has the PPU sprite's maths; what differs: sprites clipped to
+// nothing aren't sent, a speed trail with no length is not rotated by a NaN,
+// and the [fx] fill count is the PPU's systems' only. If the SPU doesn't
+// answer, the PPU draws from then on.
+
+extern "C" const uint8 spuparticles_elf[];	// the SPU program (Makefile, .incbin)
+void PS3_SpriteScreenScale(float *kw, float *kh);	// Sprite.cpp
+
+enum { PCMD_BLEND, PCMD_RASTER, PCMD_BATCH, PCMD_PPU };
+struct PartCmd
+{
+	uint8 type;
+	int16 arg;		// BATCH: batch, PPU: particle type
+	uint32 flags;		// BLEND
+	RwRaster *raster;	// RASTER
+};
+#define MAX_PART_CMDS (SPUPART_MAX_BATCHES * 3 + MAX_PARTICLES + 8)
+
+static SpuPartJob sPartJob __attribute__((aligned(128)));
+static SpuPartSprite sPartSprites[SPUPART_MAX_SPRITES] __attribute__((aligned(128)));
+static SpuPartBatch sPartBatches[SPUPART_MAX_BATCHES] __attribute__((aligned(128)));
+static PartCmd sPartCmds[MAX_PART_CMDS];
+static uint8 *sPartStaging;	// spuparticles_ram.txt
+static int sPartState;		// 0 not started, 1 on, 2 off
+static uint32 sPartSeq;
+
+static_assert(sizeof(SpuPartSprite) == 64, "SpuPartSprite layout");
+static_assert(sizeof(SpuPartBatch) == 16, "SpuPartBatch layout");
+static_assert(sizeof(SpuPartJob) == 128, "SpuPartJob layout");
+static_assert(SPUPART_QUAD_BYTES == 4 * sizeof(RwIm2DVertex), "quad size");
+static_assert(MAX_PARTICLES_ON_SCREEN <= SPUPART_MAX_SPRITES, "sprite array");
+
+static void
+PS3_ParticlesSpuStart(void)
+{
+	sPartState = 2;
+	FILE *f = fopen(PS3_USRDIR "/nospuparticles.txt", "rb");
+	if (f) {
+		fclose(f);
+		gPS3SpuParticles = false;
+		PS3_Log("[spu] nospuparticles.txt: the particles stay on the PPU");
+		return;
+	}
+	f = fopen(PS3_USRDIR "/spuparticles_ram.txt", "rb");
+	if (f) {
+		fclose(f);
+		sPartStaging = (uint8 *)memalign(128, SPUPART_MAX_SPRITES * SPUPART_QUAD_BYTES);
+	}
+	if (!PS3_SpuTaskStart(&sPartTask, spuparticles_elf, "revcfx", SPUPART_SPUP)) {
+		PS3_Log("[spu] the particles stay on the PPU");
+		return;
+	}
+	PS3_Logf("[spu] particles: sprites built by the SPU %s", sPartStaging ? "into memory, copied to the ring (spuparticles_ram.txt)" : "straight into the vertex ring");
+	sPartState = 1;
+}
+
+static bool
+PS3_ParticlesSpu(uint32 &flags, RwRaster *&prevFrame)
+{
+	if (sPartState == 0)
+		PS3_ParticlesSpuStart();
+	if (sPartState != 1)
+		return false;
+
+	// 1. gather
+	int ns = 0, nb = 0, nc = 0;
+	int batchFirst = -1;
+	bool known = true, overflow = false;
+	uint32 gFlags = flags;
+	RwRaster *gPrev = prevFrame;
+	auto addCmd = [&](uint8 type, int arg, uint32 f, RwRaster *r) {
+		if (nc >= MAX_PART_CMDS) { overflow = true; return; }
+		PartCmd &c = sPartCmds[nc++];
+		c.type = type; c.arg = arg; c.flags = f; c.raster = r;
+	};
+	auto closeBatch = [&]() {
+		if (batchFirst < 0)
+			return;
+		if (nb >= SPUPART_MAX_BATCHES) { overflow = true; batchFirst = -1; return; }
+		sPartBatches[nb].first = batchFirst;
+		sPartBatches[nb].count = ns - batchFirst;
+		sPartBatches[nb].outFirst = sPartBatches[nb].outCount = 0;
+		addCmd(PCMD_BATCH, nb, 0, nil);
+		nb++;
+		batchFirst = -1;
+	};
+	bool lookSide = TheCamera.GetLookDirection() == LOOKING_LEFT || TheCamera.GetLookDirection() == LOOKING_RIGHT;
+	(void)lookSide;
+
+	for (int32 i = 0; i < MAX_PARTICLES && !overflow; i++) {
+		tParticleSystemData *psystem = &mod_ParticleSystemManager.m_aParticles[i];
+		CParticle *particle = psystem->m_pParticles;
+		if (particle == nil)
+			continue;
+		RwRaster **frames = psystem->m_ppRaster;
+		if ((psystem->Flags & (DRAWTOP2D | SCREEN_TRAIL)) || i == PARTICLE_WATER_HYDRANT) {
+			closeBatch();
+			addCmd(PCMD_PPU, i, 0, nil);
+			known = false;	// its state changes aren't followed here
+			continue;
+		}
+		if (!known || (gFlags & DRAW_OPAQUE) != (psystem->Flags & DRAW_OPAQUE) ||
+		    (gFlags & DRAW_DARK) != (psystem->Flags & DRAW_DARK)) {
+			closeBatch();
+			addCmd(PCMD_BLEND, 0, psystem->Flags, nil);
+			gFlags = psystem->Flags;
+		}
+		if (frames != nil && (!known || *frames != gPrev)) {
+			closeBatch();
+			addCmd(PCMD_RASTER, 0, 0, *frames);
+			gPrev = *frames;
+		}
+		known = true;
+		bool smoke = i == PARTICLE_ENGINE_STEAM || i == PARTICLE_ENGINE_SMOKE || i == PARTICLE_ENGINE_SMOKE2 ||
+		             i == PARTICLE_CARFLAME_SMOKE || i == PARTICLE_CARCOLLISION_DUST || i == PARTICLE_EXHAUST_FUMES ||
+		             i == PARTICLE_RUBBER_SMOKE || i == PARTICLE_BURNINGRUBBER_SMOKE;
+		tParticleType type = psystem->m_Type;
+		bool banned = type == PARTICLE_ENGINE_SMOKE || type == PARTICLE_ENGINE_SMOKE2 || type == PARTICLE_ENGINE_STEAM ||
+		              type == PARTICLE_CARFLAME_SMOKE || type == PARTICLE_RUBBER_SMOKE || type == PARTICLE_BURNINGRUBBER_SMOKE ||
+		              type == PARTICLE_EXHAUST_FUMES || type == PARTICLE_CARCOLLISION_DUST;
+		uint16 limits = SPUPART_LIMIT_H | (banned ? SPUPART_LIMIT_W : 0) | (gPS3FxLimit ? SPUPART_FADE : 0);
+		const CVector2D &stretch = psystem->m_vecTextureStretch;
+		for (; particle != nil; particle = particle->m_pNext) {
+			if (particle->m_nAlpha == 0)
+				continue;
+			if (psystem->m_nFinalAnimationFrame != 0 && frames != nil) {
+				PS3_ParticleFrameClamp(particle, i, frames);
+				RwRaster *curFrame = frames[particle->m_nCurrentFrame];
+				if (curFrame != gPrev) {
+					closeBatch();
+					addCmd(PCMD_RASTER, 0, 0, curFrame);
+					gPrev = curFrame;
+				}
+			}
+			if (ns >= SPUPART_MAX_SPRITES) {
+				overflow = true;
+				break;
+			}
+			SpuPartSprite &sp = sPartSprites[ns];
+			sp.x = particle->m_vecPosition.x;
+			sp.y = particle->m_vecPosition.y;
+			sp.z = particle->m_vecPosition.z;
+			sp.flags = limits;
+			if (smoke) {
+				if (lookSide) {
+					sp.addW = CGeneral::GetRandomNumberInRange(1.0f, 7.5f) * stretch.x;
+					sp.addH = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * stretch.y;
+				} else {
+					sp.addW = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * stretch.x;
+					sp.addH = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * stretch.y;
+				}
+			} else if (i == PARTICLE_FLYERS) {
+				sp.addW = stretch.x;
+				sp.addH = stretch.y;
+				sp.flags |= SPUPART_MIN12;
+			} else {
+				sp.addW = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * stretch.x;
+				sp.addH = CGeneral::GetRandomNumberInRange(0.1f, 1.0f) * stretch.y;
+			}
+			float size = particle->m_fSize;
+			sp.size = size;
+			sp.wMul = sp.hMul = size;
+			sp.rot = 0.0f;
+			sp.px = sp.py = sp.pz = 0.0f;
+			sp.trailMul = psystem->m_fTrailLengthMultiplier;
+			if (particle->m_nRotation != 0 && i != PARTICLE_BEASTIE) {
+				sp.kind = SPUPART_ROTATE;
+				sp.rot = DEGTORAD((float)particle->m_nRotation);
+			} else if (psystem->Flags & SPEED_TRAIL) {
+				sp.kind = SPUPART_SPEEDTRAIL;
+				CVector prev = particle->m_vecPosition - particle->m_vecVelocity;
+				sp.px = prev.x;
+				sp.py = prev.y;
+				sp.pz = prev.z;
+			} else if (psystem->Flags & VERT_TRAIL) {
+				sp.kind = SPUPART_PLAIN;
+				sp.hMul = size + Abs(particle->m_vecVelocity.z * 10.0f) * psystem->m_fTrailLengthMultiplier;
+			} else if (i == PARTICLE_RAINDROP_SMALL) {
+				sp.kind = SPUPART_PLAIN;
+				sp.wMul = size * 0.05f;
+			} else
+				sp.kind = SPUPART_PLAIN;
+			int16 intens = particle->m_nColorIntensity;
+			sp.r = (uint8)(particle->m_Color.red * intens >> 8);
+			sp.g = (uint8)(particle->m_Color.green * intens >> 8);
+			sp.b = (uint8)(particle->m_Color.blue * intens >> 8);
+			sp.a = particle->m_nAlpha;
+			if (batchFirst < 0)
+				batchFirst = ns;
+			ns++;
+		}
+	}
+	closeBatch();
+	if (overflow) {
+		static int logged;
+		if (logged++ < 4)
+			PS3_Logf("[spu] particles: %d sprites, %d batches, %d commands: over the arrays, the PPU draws this frame", ns, nb, nc);
+		return false;
+	}
+
+	// 2. the SPU builds the quads
+	uint32 ringOff = 0;
+	if (ns > 0) {
+		uint8 *dst = sPartStaging;
+		if (dst == nil) {
+			dst = rw::ps3::ringAlloc(ns * SPUPART_QUAD_BYTES, &ringOff);
+			if (dst == nil)
+				return false;	// the ring is full: the PPU's draws will say so
+		}
+		SpuPartJob &j = sPartJob;
+		j.spritesEa = (uint64)(uintptr_t)sPartSprites;
+		j.batchesEa = (uint64)(uintptr_t)sPartBatches;
+		j.outEa = (uint64)(uintptr_t)dst;
+		j.numSprites = ns;
+		j.numBatches = nb;
+		const CMatrix &m = TheCamera.m_viewMatrix;
+		j.view[0] = m.rx; j.view[1] = m.ry; j.view[2] = m.rz;
+		j.view[3] = m.fx; j.view[4] = m.fy; j.view[5] = m.fz;
+		j.view[6] = m.ux; j.view[7] = m.uy; j.view[8] = m.uz;
+		j.view[9] = m.px; j.view[10] = m.py; j.view[11] = m.pz;
+		j.nearClip = CDraw::GetNearClipZ();
+		j.farClip = CDraw::GetFarClipZ();
+		j.screenW = SCREEN_WIDTH;
+		j.screenH = SCREEN_HEIGHT;
+		PS3_SpriteScreenScale(&j.kw, &j.kh);
+		j.near2D = CSprite::GetNearScreenZ();
+		j.far2D = CSprite::GetFarScreenZ();
+		j.scaleLimit = fParticleScaleLimit;
+		j.seq = ++sPartSeq & 0xFFFFFF;
+		j.numQuads = 0;
+		if (!PS3_SpuTaskKick(&sPartTask, (uint32)(uintptr_t)&sPartJob) ||
+		    !PS3_SpuTaskWait(&sPartTask, j.seq, 50 * 1000, &gPS3SpuPartWaitUs)) {
+			sPartState = 2;
+			gPS3SpuParticles = false;
+			return false;
+		}
+		if (sPartStaging && j.numQuads > 0) {
+			uint8 *ring = rw::ps3::ringAlloc(j.numQuads * SPUPART_QUAD_BYTES, &ringOff);
+			if (ring == nil)
+				return false;
+			memcpy(ring, sPartStaging, j.numQuads * SPUPART_QUAD_BYTES);
+		}
+	}
+
+	// 3. play the commands back
+	for (int c = 0; c < nc; c++) {
+		const PartCmd &cmd = sPartCmds[c];
+		switch (cmd.type) {
+		case PCMD_BLEND:
+			if (cmd.flags & DRAW_OPAQUE) {
+				RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDSRCALPHA);
+				RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void *)rwBLENDINVSRCALPHA);
+			} else {
+				if (cmd.flags & DRAW_DARK)
+					RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDSRCALPHA);
+				else
+					RwRenderStateSet(rwRENDERSTATESRCBLEND, (void *)rwBLENDONE);
+				RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void *)rwBLENDONE);
+			}
+			flags = cmd.flags;
+			break;
+		case PCMD_RASTER:
+			RwRenderStateSet(rwRENDERSTATETEXTURERASTER, (void *)cmd.raster);
+			prevFrame = cmd.raster;
+			break;
+		case PCMD_BATCH: {
+			const SpuPartBatch &b = sPartBatches[cmd.arg];
+			if (b.outCount > 0)
+				rw::ps3::im2DDrawQuadsAt(ringOff + b.outFirst * SPUPART_QUAD_BYTES, b.outCount);
+			break;
+		}
+		case PCMD_PPU:
+			RenderParticleSystem(cmd.arg, flags, prevFrame);
+			break;
+		}
+	}
+	return true;
+}
+#endif
 
 void CParticle::RemovePSystem(tParticleType type)
 {
