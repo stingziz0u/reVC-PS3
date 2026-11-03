@@ -1251,6 +1251,34 @@ PS3_ScreenDropStep(CParticle *particle, CVector &vecMoveStep, bool tick, bool wa
 	}
 }
 
+// patch 88: the [drops] log line, every 2 s while there are drops on the
+// screen (logson.txt): how many are alive, what CMBlur::AddRenderFx did with
+// them (added, or why not) and how many it drew, the near clip and the blur
+// type. For the blood drops that only showed when getting into a car.
+extern int32 gPS3DropFx[8];	// MBlur.cpp
+static void
+PS3_DropsReport(void)
+{
+	static uint32 last;
+	uint32 now = CTimer::GetTimeInMilliseconds();
+	if ( !PS3_logsOn || now - last < 2000 )
+		return;
+	last = now;
+	int32 water = 0;
+	for ( CParticle *p = mod_ParticleSystemManager.m_aParticles[PARTICLE_WATERDROP].m_pParticles; p; p = p->m_pNext )
+		water++;
+	int32 any = water + sPS3BloodDrops;
+	for ( int i = 0; i < 8; i++ )
+		any += gPS3DropFx[i];
+	if ( any )
+		PS3_Logf("[drops] alive: water %d blood %d (on screen %d) | fx: added %d drawn %d, not added: full %d off %d overlap %d radar %d hud %d names %d | near %.2f blur %d rain %.2f",
+			water, sPS3BloodDrops, numWaterDropOnScreen,
+			gPS3DropFx[0], gPS3DropFx[7], gPS3DropFx[1], gPS3DropFx[2], gPS3DropFx[3],
+			gPS3DropFx[4], gPS3DropFx[5], gPS3DropFx[6],
+			(double)CDraw::GetNearClipZ(), (int)TheCamera.m_BlurType, (double)CWeather::Rain);
+	memset(gPS3DropFx, 0, sizeof(gPS3DropFx));
+}
+
 // 1 while the drop lives, down to 0 in its last PS3_DROP_DRY_MS
 static float
 PS3_ScreenDropDry(CParticle *particle)
@@ -1274,6 +1302,7 @@ void CParticle::Update()
 	sPS3BloodDrops = 0;
 	for ( CParticle *p = mod_ParticleSystemManager.m_aParticles[PARTICLE_BLOODDROP].m_pParticles; p; p = p->m_pNext )
 		sPS3BloodDrops++;
+	PS3_DropsReport();	// patch 88
 #endif
 
 	CRGBA color(0, 0, 0, 0);

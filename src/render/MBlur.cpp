@@ -16,6 +16,12 @@
 #include "Frontend.h"
 #include "MBlur.h"
 #include "postfx.h"
+#ifdef __PS3__
+// patch 88: what happens to the drops on the screen, for the [drops] log line
+// (Particle.cpp): [0] added, [1] list full, [2] off the screen, [3] on
+// another drop, [4] radar, [5] HUD, [6] vehicle or zone name; [7] drawn
+int32 gPS3DropFx[8];
+#endif
 
 // Originally taken from RW example 'mblur'
 
@@ -544,15 +550,25 @@ CMBlur::PosInside(RwRect *rect, float x1, float y1, float x2, float y2)
 bool
 CMBlur::AddRenderFx(RwCamera *cam, RwRect *rect, float z, FxType type)
 {
-	if(pBufVertCount >= NUM_RENDER_FX)
+#ifdef __PS3__
+	bool ps3Drop = type == FXTYPE_WATER1 || type == FXTYPE_WATER2 || type == FXTYPE_BLOOD1 || type == FXTYPE_BLOOD2;
+#define PS3_DROPFX(n) do { if(ps3Drop) gPS3DropFx[n]++; } while(0)
+#else
+#define PS3_DROPFX(n)
+#endif
+	if(pBufVertCount >= NUM_RENDER_FX){
+		PS3_DROPFX(1);
 		return false;
+	}
 
 	rect->x = Max(rect->x, 0);
 	rect->y = Max(rect->y, 0);
 	rect->w = Min(rect->w, SCREEN_WIDTH);
 	rect->h = Min(rect->h, SCREEN_HEIGHT);
-	if(rect->x >= rect->w || rect->y >= rect->h)
+	if(rect->x >= rect->w || rect->y >= rect->h){
+		PS3_DROPFX(2);
 		return false;
+	}
 
 	switch(type){
 	case FXTYPE_WATER1:
@@ -561,23 +577,35 @@ CMBlur::AddRenderFx(RwCamera *cam, RwRect *rect, float z, FxType type)
 	case FXTYPE_BLOOD2:
 	case FXTYPE_HEATHAZE:	// code seems to be duplicated for this case
 		for(int i = 0; i < pBufVertCount; i++)
-			if(fxType[i] == type && PosInside(rect, fxRect[i].x-10.0f, fxRect[i].y-10.0f, fxRect[i].w+10.0f, fxRect[i].h+10.0f))
+			if(fxType[i] == type && PosInside(rect, fxRect[i].x-10.0f, fxRect[i].y-10.0f, fxRect[i].w+10.0f, fxRect[i].h+10.0f)){
+				PS3_DROPFX(3);
 				return false;
+			}
 		// TODO: fix aspect ratio scaling
 		// radar
-		if(PosInside(rect, 40.0f, SCREEN_SCALE_FROM_BOTTOM(116.0f), 40.0f + SCREEN_SCALE_X(94.0f), SCREEN_SCALE_FROM_BOTTOM(116.0f - 76.0f)))
+		if(PosInside(rect, 40.0f, SCREEN_SCALE_FROM_BOTTOM(116.0f), 40.0f + SCREEN_SCALE_X(94.0f), SCREEN_SCALE_FROM_BOTTOM(116.0f - 76.0f))){
+			PS3_DROPFX(4);
 			return false;
+		}
 		// HUD
-		if(PosInside(rect, 400.0f, 0.0f, SCREEN_WIDTH, 90.0f))
+		if(PosInside(rect, 400.0f, 0.0f, SCREEN_WIDTH, 90.0f)){
+			PS3_DROPFX(5);
 			return false;
+		}
 		// vehicle name
-		if(CHud::m_VehicleState != 0 && PosInside(rect, SCREEN_WIDTH/2, 350.0f, SCREEN_WIDTH, SCREEN_HEIGHT))
+		if(CHud::m_VehicleState != 0 && PosInside(rect, SCREEN_WIDTH/2, 350.0f, SCREEN_WIDTH, SCREEN_HEIGHT)){
+			PS3_DROPFX(6);
 			return false;
+		}
 		// zone name
-		if(CHud::m_ZoneState != 0 && PosInside(rect, SCREEN_WIDTH/2, 350.0f, SCREEN_WIDTH, SCREEN_HEIGHT))
+		if(CHud::m_ZoneState != 0 && PosInside(rect, SCREEN_WIDTH/2, 350.0f, SCREEN_WIDTH, SCREEN_HEIGHT)){
+			PS3_DROPFX(6);
 			return false;
+		}
 		break;
 	}
+	PS3_DROPFX(0);
+#undef PS3_DROPFX
 
 	fxRect[pBufVertCount] = *rect;
 	fxZ[pBufVertCount] = z;
@@ -615,6 +643,12 @@ CMBlur::OverlayRenderFx(RwCamera *cam, RwRaster *frontBuf)
 		case FXTYPE_BLOOD1:
 		case FXTYPE_BLOOD2: {
 			drawWaterDrops = true;
+#ifdef __PS3__
+			// patch 88: the drops are on the lens: drawn over everything, no
+			// depth test (it was on, with the drop's depth at 1-2 m)
+			RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)FALSE);
+			gPS3DropFx[7]++;
+#endif
 			int32 width  = Pow(2.0f, int32(log2(RwRasterGetWidth (RwCameraGetRaster(cam))))+1);
 			int32 height = Pow(2.0f, int32(log2(RwRasterGetHeight(RwCameraGetRaster(cam))))+1);
 
@@ -688,6 +722,9 @@ CMBlur::OverlayRenderFx(RwCamera *cam, RwRaster *frontBuf)
 			break;
 
 		case FXTYPE_HEATHAZE:
+#ifdef __PS3__
+			RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)TRUE);	// the haze is in the world
+#endif
 			if(TheCamera.GetScreenFadeStatus() == FADE_0 && frontBuf){
 				int alpha = FrontEndMenuManager.m_PrefsBrightness > 255 ?
 					FrontEndMenuManager.m_PrefsBrightness - 90 :
@@ -744,6 +781,9 @@ CMBlur::OverlayRenderFx(RwCamera *cam, RwRaster *frontBuf)
 #endif
 
 	if(drawWaterDrops){
+#ifdef __PS3__
+		RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)FALSE);	// patch 88
+#endif
 		RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)rwBLENDSRCALPHA);
 		RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)rwBLENDONE);
 

@@ -102,6 +102,8 @@ Fixes:
   L1/R1 by 10 (hold to scroll), X puts you in it, O closes. Boats go on the
   water in front of you (up to 30 m). Trains, the police helicopter, the
   planes you can't fly and the RC toys aren't in the list.
+- **Rain mode** (for testing, off unless there is a file named `rain.txt`
+  in `USRDIR`, any content): it always rains, missions included.
 - All the radio stations, and the **MP3 player** station: put `.mp3` files
   in `USRDIR/mp3`.
 - **Skins**: put `.bmp` skins in `USRDIR/skins`, choose them in *Player setup*.

@@ -23,6 +23,9 @@ int32 gPS3FxOff;	// autotest rain mode: 1 streaks, 2 drops on the screen, 4 spla
 #include "World.h"
 #include "ZoneCull.h"
 #include "SpecialFX.h"
+#ifdef __PS3__
+#include "ps3_platform.h"
+#endif
 #include "Replay.h"
 
 int32 CWeather::SoundHandle = -1;
@@ -146,6 +149,22 @@ void CWeather::Init(void)
 
 void CWeather::Update(void)
 {
+#ifdef __PS3__
+	// patch 88: rain mode, for testing what rain does without waiting for
+	// the game to pick it: an empty USRDIR/rain.txt and it always rains
+	// (the weather is set to rainy every frame, missions included)
+	static int ps3RainMode = -1;
+	if (ps3RainMode < 0) {
+		FILE *f = fopen(PS3_USRDIR "/rain.txt", "rb");
+		ps3RainMode = f != nil;
+		if (f) {
+			fclose(f);
+			PS3_Log("[weather] rain.txt: it always rains");
+		}
+	}
+	if (ps3RainMode)
+		ForceWeatherNow(WEATHER_RAINY);
+#endif
 	if(!CReplay::IsPlayingBack()){
 		float fNewInterpolation = (CClock::GetMinutes() + CClock::GetSeconds()/60.0f)/60.0f;
 		if (fNewInterpolation < InterpolationValue) {
