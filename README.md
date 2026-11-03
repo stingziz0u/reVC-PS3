@@ -72,6 +72,9 @@ Fixes:
   did). Each drop now gets its own, runs down the screen and dries up at the
   end instead of vanishing (up to about 9 seconds for water, 6 for blood),
   the same at 30 and 60 fps.
+- **Drops and heat haze on the screen are drawn with the camera straight or
+  up**: before, only when it looked down (the RSX cut them).
+- **Rain mode** for testing: an empty `USRDIR/rain.txt` and it always rains.
 
 ## Features
 

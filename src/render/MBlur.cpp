@@ -294,7 +294,24 @@ CMBlur::CreateImmediateModeData(RwCamera *cam, RwRect *rect, RwIm2DVertex *verts
 		v2 = clamp(v2, 0.0f, 1.0f);
 	}
 
+#ifdef __PS3__
+	// patch 89: the screen effects (drops, heat haze) were cut by the RSX
+	// when the camera looked straight or up. z is a screen Z made between
+	// RwIm2DGetNearScreenZ and GetFarScreenZ, -1 and 1 on the PS3 (0 and 1 in
+	// D3D8), and 1/z went in as RecipCameraZ: the im2d shader takes the
+	// camera z (1/recipz) as the vertex's w. A drop 1 m (blood) or 1.5-2 m
+	// (water) from the camera has a negative z with the near clip at 0.9 m
+	// (straight or up; looking down at the ground behind brings the near
+	// clip closer and z went positive): a negative w, the quad clipped, not
+	// drawn. The camera z is the near clip's (as CameraZ already says)
+	float recipz = 1.0f/RwCameraGetNearClipPlane(cam);
+	// and a drop nearer than the near clip (a script's near clip over 1 m)
+	// would be out of the depth range: kept just inside it
+	float zn = RwIm2DGetNearScreenZ(), zf = RwIm2DGetFarScreenZ();
+	z = clamp(z, zn + (zf - zn)*0.0001f, zf - (zf - zn)*0.0001f);
+#else
 	float recipz = 1.0f/z;
+#endif
 	// TODO: CameraZ is wrong, what should we do?
 	RwIm2DVertexSetScreenX(&verts[0], x1);
 	RwIm2DVertexSetScreenY(&verts[0], y1);
