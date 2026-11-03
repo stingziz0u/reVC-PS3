@@ -129,6 +129,8 @@ profTicks(void)
 extern "C" void
 PS3_ProfAdd(int group, const char *name, unsigned long long ticks)
 {
+	if (!PS3_logsOn)	// nothing to report without the log
+		return;
 	if (group < 0 || group >= PROF_GROUPS || name == NULL)
 		return;
 	ProfStepBucket *b = stepBuckets[group];
@@ -150,6 +152,8 @@ PS3_ProfAdd(int group, const char *name, unsigned long long ticks)
 extern "C" void
 PS3_ProfStep(int group, const char *name)
 {
+	if (!PS3_logsOn)
+		return;
 	if (group < 0 || group >= PROF_GROUPS)
 		return;
 	u64 now = profTicks();
@@ -206,7 +210,9 @@ void
 PS3_ProfFrame(void)
 {
 	u64 now = profNow();
-	PS3_crumbFrame++;	// the frame number in the [crash] lines
+	PS3_crumbFrame++;	// the frame number in the [crash] lines (and the hang watchdog's)
+	if (!PS3_logsOn)
+		return;		// no reports without the log (USRDIR/logson.txt, from res-PS3)
 	if (frameStart)
 		frameTotal += now - frameStart;
 	frameStart = now;
