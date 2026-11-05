@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.6 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.7 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, and the game has been played to 100% on a real PS3. Expect bugs
@@ -37,6 +37,28 @@ PS3 layer.
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
 PlayStation button icons and the controller picture of the settings page).
+
+## What's new in 1.7
+
+- **The rocket launcher's view over the whole screen**, as in San Andreas
+  (the black frame around it is gone; the sniper rifle keeps its scope).
+- **The PC intro movies** (`movies/Logo.mpg` and `movies/GTAtitles.mpg`)
+  at start up, for testing: only with an empty `USRDIR/videointrotest.txt`.
+  X, O or Start skips them.
+
+From Gamer100Dev's [reVC-PS3-Optimised](https://github.com/Gamer100Dev/reVC-PS3-Optimised):
+
+- Shadows filtered right, the headlights on the ground without the
+  rectangle around the beam, the ped shadow never wraps to black at the edge
+  of its range, the car lights fade smoothly, the long corona streaks
+  without their square.
+- The M4, Ruger and M60 aim in third person in the stairs camera zones (the
+  player was left in first person mode).
+- The drops and blood on the lens refract this frame, not the one before.
+- The radio tunes a station 8 frames after the last press instead of 20.
+- RSX safety: the waits for the RSX keep waiting instead of reusing memory
+  still in use, a full vertex ring starts over instead of dropping draws,
+  and damaged textures are refused.
 
 ## What's new in 1.6
 
@@ -235,6 +257,9 @@ or platforms don't work.
   `USRDIR/spuparticles_ram.txt` keeps them on the SPU but has it write to
   main memory (the PPU copies them for the RSX). Report which one changes
   it, with the log.
+- The intro movies: an empty `USRDIR/videointrotest.txt` plays them at
+  start up (they need the `movies` folder of the PC game); if they don't
+  show, send the log.
 - `USRDIR/autotest.txt` runs an automatic test while you watch (load a save
   in a safehouse, with no mission running, and walk out: it starts 10 s
   after the player is outdoors, with a countdown on screen). One line in it chooses
@@ -297,6 +322,10 @@ and PSL1GHT's `cgcomp` with `cgcomp-relative-constants.patch`; see
   [librw](https://github.com/aap/librw).
 - The [ps3dev](https://github.com/ps3dev) people for ps3toolchain and PSL1GHT.
 - lieff for [minimp3](https://github.com/lieff/minimp3).
+- phoboslab for [pl_mpeg](https://github.com/phoboslab/pl_mpeg) (the intro
+  movies).
+- Gamer100Dev for the fixes of
+  [reVC-PS3-Optimised](https://github.com/Gamer100Dev/reVC-PS3-Optimised).
 
 The original reVC README is kept as [README.reVC.md](README.reVC.md).
 
