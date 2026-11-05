@@ -23,6 +23,7 @@
 #include "Replay.h"
 #include "PedPlacement.h"
 #include "VarConsole.h"
+#include "ZoneCull.h"
 
 #define PAD_MOVE_TO_GAME_WORLD_MOVE 60.0f
 
@@ -665,10 +666,31 @@ CPlayerPed::IsThisPedAnAimingPriority(CPed *suspect)
 	return suspect->m_nPedState == PED_ABSEIL;
 }
 
+#ifdef __PS3__
+// from reVC-PS3-Optimised (Gamer100Dev): in a stairs camera zone the camera
+// takes the stairs cam instead of the rifles' first person mode, and the ped
+// was left in that mode (aiming that went nowhere). There the M4, Ruger and
+// M60 aim in third person, through the normal target selection
+static bool
+PS3_RifleAimOnStairs(CPlayerPed *ped)
+{
+	eWeaponType w = ped->GetWeapon()->m_eWeaponType;
+	return (w == WEAPONTYPE_M4 || w == WEAPONTYPE_RUGER || w == WEAPONTYPE_M60) &&
+	       CCullZones::CamStairsForPlayer() && CCullZones::FindZoneWithStairsAttributeForPlayer();
+}
+#endif
+
 void
 CPlayerPed::PlayerControlSniper(CPad *padUsed)
 {
 	ProcessWeaponSwitch(padUsed);
+#ifdef __PS3__
+	if(PS3_RifleAimOnStairs(this)){
+		TheCamera.ClearPlayerWeaponMode();
+		RestorePreviousState();
+		return;
+	}
+#endif
 	TheCamera.PlayerExhaustion = (1.0f - (m_fCurrentStamina - -150.0f) / 300.0f) * 0.9f + 0.1f;
 
 	if (padUsed->DuckJustDown() && !bIsDucking && m_nMoveState != PEDMOVE_SPRINT) {
@@ -795,6 +817,13 @@ void
 CPlayerPed::PlayerControlM16(CPad *padUsed)
 {
 	ProcessWeaponSwitch(padUsed);
+#ifdef __PS3__
+	if(PS3_RifleAimOnStairs(this)){
+		TheCamera.ClearPlayerWeaponMode();
+		RestorePreviousState();
+		return;
+	}
+#endif
 	TheCamera.PlayerExhaustion = (1.0f - (m_fCurrentStamina - -150.0f) / 300.0f) * 0.9f + 0.1f;
 
 	if (padUsed->DuckJustDown() && !bIsDucking && m_nMoveState != PEDMOVE_SPRINT) {
@@ -1234,7 +1263,11 @@ CPlayerPed::ProcessPlayerWeapon(CPad *padUsed)
 	else
 		m_wepAccuracy = 100;
 
+#ifdef __PS3__
+	if (!m_pFire && !PS3_RifleAimOnStairs(this)) {	// reVC-PS3-Optimised: no first person rifles there
+#else
 	if (!m_pFire) {
+#endif
 		eWeaponType weapon = GetWeapon()->m_eWeaponType;
 		if (weapon == WEAPONTYPE_ROCKETLAUNCHER || weapon == WEAPONTYPE_SNIPERRIFLE ||
 			weapon == WEAPONTYPE_LASERSCOPE || weapon == WEAPONTYPE_M4 ||

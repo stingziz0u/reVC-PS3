@@ -361,15 +361,26 @@ CMBlur::MotionBlurRender(RwCamera *cam, uint32 red, uint32 green, uint32 blue, u
 	if( pFrontBuffer )
 		OverlayRender(cam, pFrontBuffer, color, type, bluralpha);
 #else
+	bool ps3Overlaid = false;
 	if(ms_bJustInitialised)
 		ms_bJustInitialised = false;
-	else
+	else{
 		OverlayRender(cam, pFrontBuffer, color, type, bluralpha);
+		ps3Overlaid = true;
+	}
 	if(BlurOn){
 		RwRasterPushContext(pFrontBuffer);
 		RwRasterRenderFast(RwCameraGetRaster(cam), 0, 0);
 		RwRasterPopContext();
 	}
+#ifdef __PS3__
+	// from reVC-PS3-Optimised (Gamer100Dev): the drops and blood on the lens sample the
+	// scene through pFrontBuffer; drawn after it holds this frame (in
+	// OverlayRender it was the frame before: a patch of stale colour on what
+	// moves, cutscene characters). The trail above still uses the old one
+	if(ps3Overlaid && type != MOTION_BLUR_SNIPER)
+		OverlayRenderFx(cam, pFrontBuffer);
+#endif
 #endif
 #endif
 }
@@ -522,8 +533,10 @@ CMBlur::OverlayRender(RwCamera *cam, RwRaster *raster, RwRGBA color, int32 type,
 		RwIm2DRenderIndexedPrimitive(rwPRIMTYPETRILIST, Vertex, 4, Index, 6);
 	}
 
+#ifndef __PS3__	// PS3: in MotionBlurRender, after pFrontBuffer is this frame
 	if(type != MOTION_BLUR_SNIPER)
 		OverlayRenderFx(cam, pFrontBuffer);
+#endif
 
 	RwRenderStateSet(rwRENDERSTATEFOGENABLE, (void*)FALSE);
 	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)TRUE);

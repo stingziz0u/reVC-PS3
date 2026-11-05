@@ -28,6 +28,13 @@ static_assert(false, "R*'s radio implementation is quite buggy, RADIO_SCROLL_TO_
 cMusicManager MusicManager;
 int32 gNumRetunePresses;
 int32 gRetuneCounter;
+#ifdef __PS3__
+// from reVC-PS3-Optimised (Gamer100Dev): a fast scroll through the stations still
+// tunes once, to the last, 8 frames after the last press instead of 20
+#define RETUNE_DELAY 8
+#else
+#define RETUNE_DELAY 20
+#endif
 bool g_bAnnouncementReadPosAlready;
 uint8 RadioStaticCounter = 5;
 uint32 RadioStaticTimer;
@@ -524,7 +531,7 @@ cMusicManager::ServiceGameMode()
 			{
 				if (!UsesPoliceRadio(vehicle) && !UsesTaxiRadio(vehicle)) {
 					gNumRetunePresses = 0;
-					gRetuneCounter = 20;
+					gRetuneCounter = RETUNE_DELAY;
 					RadioStaticCounter = 0;
 					if (vehicle->m_nRadioStation < USERTRACK)
 					{
@@ -539,7 +546,7 @@ cMusicManager::ServiceGameMode()
 			{
 				if (!UsesPoliceRadio(vehicle) && !UsesTaxiRadio(vehicle)) {
 					gNumRetunePresses++;
-					gRetuneCounter = 20;
+					gRetuneCounter = RETUNE_DELAY;
 					RadioStaticCounter = 0;
 				}
 			}
@@ -552,7 +559,7 @@ cMusicManager::ServiceGameMode()
 
 					if(scrollPrev != -1 && !ControlsManager.IsAnyVehicleActionAssignedToMouseKey(scrollPrev)) {
 						gNumRetunePresses--;
-						gRetuneCounter = 20;
+						gRetuneCounter = RETUNE_DELAY;
 						RadioStaticCounter = 0;
 						int track = gNumRetunePresses + vehicle->m_nRadioStation;
 						while(track < 0) track += NUM_RADIOS + 1;
@@ -665,7 +672,7 @@ cMusicManager::ServiceGameMode()
 				}
 				if (station == RADIO_OFF)
 				{
-					if (gRetuneCounter == 19) // One less then what switching radio sets, so runs right after turning off radio
+					if (gRetuneCounter == RETUNE_DELAY - 1) // One less then what switching radio sets, so runs right after turning off radio
 					{
 						AudioManager.PlayOneShot(AudioManager.m_nFrontEndEntity, SOUND_FRONTEND_RADIO_TURN_OFF, 0.0f);
 						RadioStaticCounter = 5;
@@ -674,9 +681,9 @@ cMusicManager::ServiceGameMode()
 				else
 				{
 #ifdef RADIO_SCROLL_TO_PREV_STATION
-					if (vehicle->m_nRadioStation == RADIO_OFF && gRetuneCounter == 19) // Right after turning on the radio
+					if (vehicle->m_nRadioStation == RADIO_OFF && gRetuneCounter == RETUNE_DELAY - 1) // Right after turning on the radio
 #else
-					if (station == 0 && gRetuneCounter == 19) // Right after turning on the radio
+					if (station == 0 && gRetuneCounter == RETUNE_DELAY - 1) // Right after turning on the radio
 #endif
 						AudioManager.PlayOneShot(AudioManager.m_nFrontEndEntity, SOUND_FRONTEND_RADIO_TURN_ON, 0.0f);
 					AudioManager.DoPoliceRadioCrackle();
