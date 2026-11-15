@@ -18,6 +18,7 @@ static const struct { const char *key; const char *text; } ps3TextFallback[] = {
 	{ "FEG_TF6", "ANISOTROPIC 16X" },	// reVC-PS3's own
 	{ "FEG_AAL", "ANTIALIASING" },	// reVC-PS3's own
 	{ "FEG_AAF", "FXAA" },	// reVC-PS3's own
+	{ "FEC_PRS", "PRESSURE SENSITIVE" },	// reVC-PS3's own (from reLCS-PS3)
 	{ "FEC_S3P", "3RD PERSON SENSITIVITY" },	// reVC-PS3's own
 	{ "FEC_S1P", "1ST PERSON SENSITIVITY" },	// reVC-PS3's own
 	{ "FEC_DZL", "LEFT STICK DEAD ZONE" },	// reVC-PS3's own
