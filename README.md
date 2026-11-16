@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.7 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.7.1 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, and the game has been played to 100% on a real PS3. Expect bugs
@@ -37,6 +37,11 @@ PS3 layer.
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
 PlayStation button icons and the controller picture of the settings page).
+
+## What's new in 1.7.1
+
+- **Controller settings > PRESSURE SENSITIVE**: turns the pressure-sensitive
+  Cross and Square (accelerate and brake) on or off, as in reLCS-PS3.
 
 ## What's new in 1.7
 
