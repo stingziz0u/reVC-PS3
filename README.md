@@ -180,7 +180,7 @@ the original):
 
 ## Installation
 
-1. Install `revc-ps3-1.6-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.7.1-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
