@@ -2913,6 +2913,9 @@ CMenuManager::InitialiseChangedLanguageSettings()
 		CTimer::Update();
 		CGame::frenchGame = false;
 		CGame::germanGame = false;
+#if defined PS3_EXTRA_LANGUAGES && !defined MORE_LANGUAGES
+		CFont::PS3SetLanguageFonts(m_PrefsLanguage);
+#endif
 #ifdef MORE_LANGUAGES
 		CGame::russianGame = false;
 		CGame::japaneseGame = false;

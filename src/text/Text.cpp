@@ -16,6 +16,66 @@ wchar WideErrorString[25];
 
 CText TheText;
 
+#ifdef __PS3__
+// PS3: the .gxt of each language (TEXT\JAPAN.GXT too, the name some packs
+// use). When the language's own file isn't there (a saved Polish whose
+// polish.gxt is gone, no french.gxt...) the game goes back to American:
+// an empty text table would leave every menu blank.
+static bool
+GxtInTextDir(const char *name)	// CFileMgr's dir is TEXT
+{
+	int f = CFileMgr::OpenFile(name, "rb");
+	if (f <= 0)
+		return false;
+	CFileMgr::CloseFile(f);
+	return true;
+}
+
+static const char *
+GxtFileName(int32 lang)	// CFileMgr's dir is TEXT; nil if the file isn't there
+{
+	const char *name;
+	switch (lang) {
+	case CMenuManager::LANGUAGE_FRENCH: name = "FRENCH.GXT"; break;
+	case CMenuManager::LANGUAGE_GERMAN: name = "GERMAN.GXT"; break;
+	case CMenuManager::LANGUAGE_ITALIAN: name = "ITALIAN.GXT"; break;
+	case CMenuManager::LANGUAGE_SPANISH: name = "SPANISH.GXT"; break;
+#if defined MORE_LANGUAGES || defined PS3_EXTRA_LANGUAGES
+	case CMenuManager::LANGUAGE_POLISH: name = "POLISH.GXT"; break;
+	case CMenuManager::LANGUAGE_RUSSIAN: name = "RUSSIAN.GXT"; break;
+	case CMenuManager::LANGUAGE_JAPANESE:
+		name = GxtInTextDir("JAPANESE.GXT") ? "JAPANESE.GXT" : "JAPAN.GXT";
+		break;
+#endif
+	default: name = "AMERICAN.GXT"; break;
+	}
+	return GxtInTextDir(name) ? name : nil;
+}
+
+bool
+CText::PS3HasLanguage(int32 lang)
+{
+	CFileMgr::SetDir("TEXT");
+	bool found = GxtFileName(lang) != nil;
+	CFileMgr::SetDir("");
+	return found;
+}
+
+static void
+PS3PickGxt(char *filename)	// CFileMgr's dir is TEXT
+{
+	const char *name = GxtFileName(FrontEndMenuManager.m_PrefsLanguage);
+	if (name == nil) {
+		if (FrontEndMenuManager.m_PrefsLanguage != CMenuManager::LANGUAGE_AMERICAN)
+			printf("CText: TEXT\\ has no .gxt for language %d, using AMERICAN.GXT\n",
+				(int)FrontEndMenuManager.m_PrefsLanguage);
+		FrontEndMenuManager.m_PrefsLanguage = CMenuManager::LANGUAGE_AMERICAN;
+		name = "AMERICAN.GXT";
+	}
+	strcpy(filename, name);
+}
+#endif
+
 CText::CText(void)
 {
 	encoding = 'e';
@@ -40,6 +100,9 @@ CText::Load(void)
 	Unload();
 
 	CFileMgr::SetDir("TEXT");
+#ifdef __PS3__
+	PS3PickGxt(filename);
+#else
 	switch(FrontEndMenuManager.m_PrefsLanguage){
 	case CMenuManager::LANGUAGE_AMERICAN:
 		sprintf(filename, "AMERICAN.GXT");
@@ -68,6 +131,7 @@ CText::Load(void)
 		break;
 #endif
 	}
+#endif
 
 	file = CFileMgr::OpenFile(filename, "rb");
 #ifdef __PS3__
@@ -291,6 +355,9 @@ CText::LoadMissionText(char *MissionTableName)
 	}
 
 	CFileMgr::SetDir("TEXT");
+#ifdef __PS3__
+	PS3PickGxt(filename);
+#else
 	switch (FrontEndMenuManager.m_PrefsLanguage) {
 	case CMenuManager::LANGUAGE_AMERICAN:
 		sprintf(filename, "AMERICAN.GXT");
@@ -319,6 +386,7 @@ CText::LoadMissionText(char *MissionTableName)
 		break;
 #endif
 	}
+#endif
 	CTimer::Suspend();
 	int file = CFileMgr::OpenFile(filename, "rb");
 #ifdef __PS3__

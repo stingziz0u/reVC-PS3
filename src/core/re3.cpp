@@ -93,6 +93,21 @@ mysrand(unsigned int seed)
 
 #ifdef CUSTOM_FRONTEND_OPTIONS
 #include "frontendoption.h"
+#include "Text.h"
+
+#if defined PS3_EXTRA_LANGUAGES && !defined MORE_LANGUAGES
+// PS3: Polish and Russian in Language when their .gxt is in TEXT\ (Text.cpp)
+static void
+PS3LangSelect(int32 lang)
+{
+	FrontEndMenuManager.m_PrefsLanguage = lang;
+	FrontEndMenuManager.m_bFrontEnd_ReloadObrTxtGxt = true;
+	FrontEndMenuManager.InitialiseChangedLanguageSettings();
+	FrontEndMenuManager.SaveSettings();
+}
+static void PS3LangPolSelect(int8 action) { if (action == FEOPTION_ACTION_SELECT) PS3LangSelect(CMenuManager::LANGUAGE_POLISH); }
+static void PS3LangRusSelect(int8 action) { if (action == FEOPTION_ACTION_SELECT) PS3LangSelect(CMenuManager::LANGUAGE_RUSSIAN); }
+#endif
 
 void
 CustomFrontendOptionsPopulate(void)
@@ -122,6 +137,17 @@ CustomFrontendOptionsPopulate(void)
 	}
 #endif
 
+
+#if defined PS3_EXTRA_LANGUAGES && !defined MORE_LANGUAGES
+	// after Spanish (5 entries), before Back
+	FrontendOptionSetCursor(MENUPAGE_LANGUAGE_SETTINGS, 5, false);
+	if (CText::PS3HasLanguage(CMenuManager::LANGUAGE_POLISH))
+		FrontendOptionAddDynamic("FEL_POL", 0, 0, MENUALIGN_CENTER, nil, nil, PS3LangPolSelect);
+	if (CText::PS3HasLanguage(CMenuManager::LANGUAGE_RUSSIAN))
+		FrontendOptionAddDynamic("FEL_RUS", 0, 0, MENUALIGN_CENTER, nil, nil, PS3LangRusSelect);
+	if (CText::PS3HasLanguage(CMenuManager::LANGUAGE_JAPANESE))
+		printf("[lang] TEXT\\JAPANESE.GXT found: Japanese needs its own font renderer, not offered\n");
+#endif
 }
 #endif
 

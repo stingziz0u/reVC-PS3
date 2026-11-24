@@ -545,4 +545,5 @@ static_assert(false, "SUPPORT_XBOX_SCRIPT and SUPPORT_MOBILE_SCRIPT are mutually
 #undef MISSION_REPLAY		// mobile: autosaves when a mission starts; the PC game never did
 #define GAMEPAD_MENU		// pad settings page (setup 1-4, controller picture, invert, vibration) instead of the mouse one
 #define NO_MOVIES
+#define PS3_EXTRA_LANGUAGES	// Polish and Russian when TEXT\POLISH.GXT / RUSSIAN.GXT are there (Text.cpp, Font.cpp)
 #endif

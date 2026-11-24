@@ -205,6 +205,9 @@ public:
 	static void SetDropColor(CRGBA col);
 	static wchar FindNewCharacter(wchar c);
 	static void FilterOutTokensFromString(wchar*);
+#ifdef PS3_EXTRA_LANGUAGES
+	static void PS3SetLanguageFonts(int32 lang);
+#endif
 #ifdef MORE_LANGUAGES
 	static void ReloadFonts(uint8 set);
 

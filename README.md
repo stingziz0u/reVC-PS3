@@ -234,6 +234,15 @@ the pack. The largest texture size is 4096×4096. Code mods (CLEO, ASI,
 plugins that patch the executable) and unconverted assets from other games
 or platforms don't work.
 
+### Languages
+
+Polish and Russian appear in **Options → Language** when `text/polish.gxt`
+or `text/russian.gxt` is there. Their fonts are `models/fonts_p.txd` and
+`models/fonts_r.txd`, or the game's `fonts.txd` when those aren't there
+(translations that replace that file). Japanese isn't supported yet: Vice
+City has no renderer for its letters (the log says when a `japanese.gxt` is
+found). If the saved language's file is gone, the game goes back to English.
+
 ## Troubleshooting
 
 - **The log is off by default** (nothing is written to the disk while you

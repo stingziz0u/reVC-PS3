@@ -94,6 +94,9 @@ public:
 	void GetNameOfLoadedMissionText(char *outName);
 	void ReadChunkHeader(ChunkHeader *buf, int32 file, size_t *bytes_read);
 	void LoadMissionText(char *MissionTableName);
+#ifdef __PS3__
+	static bool PS3HasLanguage(int32 lang);
+#endif
 };
 
 extern CText TheText;
