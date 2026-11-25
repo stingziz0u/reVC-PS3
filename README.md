@@ -256,7 +256,10 @@ with a real translation yet (see the known issues). To try one:
    or `fonts_r.txd` (Russian). Translations draw their letters in their own
    font: without it the game's `fonts.txd` is used and the text comes out in
    Latin letters (Russian looks like accented Latin).
-3. Choose it in **Options → Language**.
+3. If the translation comes with its own `data/fonts.dat` (the letter
+   widths), copy it to `data` renamed `fonts_p.dat` or `fonts_r.dat`:
+   without it the letters overlap. The game's `fonts.dat` stays as it is.
+4. Choose it in **Options → Language**.
 
 Japanese isn't supported: the game has no renderer for its letters (the log
 says when a `japanese.gxt` is found).

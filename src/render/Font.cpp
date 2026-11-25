@@ -309,6 +309,7 @@ int CFont::ButtonsSlot = -1;
 // FONTS.TXD (translations that replace that one). Same glyph layout and
 // widths as the EFIGS font: there's no separate renderer like III's.
 static const char *ps3FontsTxd = "MODELS/FONTS.TXD";
+static bool ps3FontsLoaded = false;	// CFont::Initialise already ran
 
 static const char *
 PS3FontsTxdFor(int32 lang)
@@ -328,14 +329,109 @@ PS3FontsTxdFor(int32 lang)
 	return "MODELS/FONTS.TXD";
 }
 
+// The letter widths (Size[][]): a translation's font has its letters at other
+// widths. DATA/FONTS_P.DAT / FONTS_R.DAT (the PC game's fonts.dat format:
+// [FONT_ID], 208 [PROP] values, [UNPROP], [REPLACEMENT_SPACE_CHAR]) when
+// they're there; else the EFIGS widths reVC has built in.
+static int16 ps3SizeDefault[MAX_FONTS][210];
+static bool ps3SizeSaved = false;
+
+static bool
+PS3LoadFontsDat(const char *file)
+{
+	static uint8 buf[16 * 1024];
+	ssize_t n = CFileMgr::LoadFile(file, buf, sizeof(buf), "rb");
+	if (n <= 0)
+		return false;
+	buf[n < (ssize_t)sizeof(buf) ? n : (ssize_t)sizeof(buf) - 1] = '\0';
+
+	int16 sizes[MAX_FONTS][210];
+	memcpy(sizes, ps3SizeDefault, sizeof(sizes));
+	int font = -1, section = 0, prop = 0, fonts = 0;
+	char *line = (char*)buf;
+	while (line && *line) {
+		char *next = strchr(line, '\n');
+		if (next)
+			*next++ = '\0';
+		char *hash = strchr(line, '#');
+		if (hash)
+			*hash = '\0';
+		if (strchr(line, '[')) {
+			if (strstr(line, "[FONT_ID]")) section = 1;
+			else if (strstr(line, "[PROP]")) { section = 2; prop = 0; }
+			else if (strstr(line, "[UNPROP]")) section = 3;
+			else if (strstr(line, "[REPLACEMENT_SPACE_CHAR]")) section = 4;
+			else section = 0;
+		} else {
+			char *p = line, *end;
+			for (;;) {
+				long v = strtol(p, &end, 10);
+				if (end == p)
+					break;
+				p = end;
+				switch (section) {
+				case 1:
+					font = (v >= 0 && v < MAX_FONTS) ? (int)v : -1;
+					if (font >= 0) fonts++;
+					section = 0;
+					break;
+				case 2:
+					if (font >= 0 && prop < 208)
+						sizes[font][prop++] = (int16)v;
+					break;
+				case 3:
+					if (font >= 0) sizes[font][209] = (int16)v;
+					section = 0;
+					break;
+				case 4:
+					if (font >= 0) sizes[font][208] = (int16)v;
+					section = 0;
+					break;
+				}
+			}
+		}
+		line = next;
+	}
+	if (fonts == 0)
+		return false;
+	memcpy(CFont::PS3SizeTable(), sizes, sizeof(sizes));
+	return true;
+}
+
+static void
+PS3SetFontWidths(int32 lang)
+{
+	if (!ps3SizeSaved) {
+		memcpy(ps3SizeDefault, CFont::PS3SizeTable(), sizeof(ps3SizeDefault));
+		ps3SizeSaved = true;
+	}
+	const char *dat = nil;
+	if (lang == CMenuManager::LANGUAGE_POLISH)
+		dat = "DATA/FONTS_P.DAT";
+	else if (lang == CMenuManager::LANGUAGE_RUSSIAN)
+		dat = "DATA/FONTS_R.DAT";
+	if (dat && PS3LoadFontsDat(dat)) {
+		printf("CFont: letter widths from %s\n", dat);
+		return;
+	}
+	memcpy(CFont::PS3SizeTable(), ps3SizeDefault, sizeof(ps3SizeDefault));
+}
+
 void
 CFont::PS3SetLanguageFonts(int32 lang)
 {
+	PS3SetFontWidths(lang);
 	const char *txd = PS3FontsTxdFor(lang);
 	if (strcmp(txd, ps3FontsTxd) == 0)
 		return;
 	printf("CFont: %s (language %d)\n", txd, (int)lang);
 	ps3FontsTxd = txd;
+	// At start-up (reVC.ini with that language) this comes before the txd
+	// store exists: CFont::Initialise loads ps3FontsTxd later. Without this
+	// check FindTxdSlot read a null pool and the game didn't start (reVC-PS3
+	// patch 97).
+	if (!ps3FontsLoaded)
+		return;
 	int slot = CTxdStore::FindTxdSlot("fonts");
 	if (slot == -1)
 		return;	// CFont::Initialise loads it
@@ -377,6 +473,7 @@ CFont::Initialise(void)
 	}
 #elif defined PS3_EXTRA_LANGUAGES
 	CTxdStore::LoadTxd(slot, ps3FontsTxd);
+	ps3FontsLoaded = true;
 #else
 	CTxdStore::LoadTxd(slot, "MODELS/FONTS.TXD");
 #endif
@@ -526,6 +623,9 @@ CFont::Shutdown(void)
 	Slot = -1;
 #else
 	CTxdStore::RemoveTxdSlot(CTxdStore::FindTxdSlot("fonts"));
+#ifdef PS3_EXTRA_LANGUAGES
+	ps3FontsLoaded = false;
+#endif
 #endif
 }
 

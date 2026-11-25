@@ -207,6 +207,8 @@ public:
 	static void FilterOutTokensFromString(wchar*);
 #ifdef PS3_EXTRA_LANGUAGES
 	static void PS3SetLanguageFonts(int32 lang);
+	// the letter widths, for DATA/FONTS_R.DAT (Font.cpp)
+	static int16 *PS3SizeTable(void) { return &Size[0][0]; }
 #endif
 #ifdef MORE_LANGUAGES
 	static void ReloadFonts(uint8 set);
