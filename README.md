@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.7.1 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.7.2 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, and the game has been played to 100% on a real PS3. Expect bugs
@@ -21,6 +21,9 @@ PS3 layer.
 >
 >
 > **Known issues:**
+> - **Polish and Russian** (new in 1.7.2) need the translation's `.gxt` and
+>   its font: with a `russian.gxt` alone the text comes out in Latin letters.
+>   Not tried with a complete translation yet; see [Languages](#languages).
 > - A freeze after crashing a bike at high speed has been reported. 1.2 and
 >   1.3 alpha have fixes for what could cause it (the audio no longer makes
 >   the game wait for the disk, the world's sector loops can't run away on
@@ -37,6 +40,13 @@ PS3 layer.
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
 PlayStation button icons and the controller picture of the settings page).
+
+## What's new in 1.7.2
+
+- **Polish and Russian** in Options → Language when their `.gxt` is in
+  `text` (see [Languages](#languages); not tried with a complete translation
+  yet).
+- A data file bigger than the game expects no longer overwrites memory.
 
 ## What's new in 1.7.1
 
@@ -180,7 +190,7 @@ the original):
 
 ## Installation
 
-1. Install `revc-ps3-1.7.1-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.7.2-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
@@ -236,12 +246,23 @@ or platforms don't work.
 
 ### Languages
 
-Polish and Russian appear in **Options → Language** when `text/polish.gxt`
-or `text/russian.gxt` is there. Their fonts are `models/fonts_p.txd` and
-`models/fonts_r.txd`, or the game's `fonts.txd` when those aren't there
-(translations that replace that file). Japanese isn't supported yet: Vice
-City has no renderer for its letters (the log says when a `japanese.gxt` is
-found). If the saved language's file is gone, the game goes back to English.
+Polish and Russian can be added (since 1.7.2), but they haven't been tried
+with a real translation yet (see the known issues). To try one:
+
+1. Copy the translation's text to `text`: `polish.gxt` or `russian.gxt`.
+   It must be made for Vice City: a GTA III `.gxt` isn't offered (the log says
+   so), and one from another game shows "missing" texts.
+2. Copy the translation's font to `models`, renamed `fonts_p.txd` (Polish)
+   or `fonts_r.txd` (Russian). Translations draw their letters in their own
+   font: without it the game's `fonts.txd` is used and the text comes out in
+   Latin letters (Russian looks like accented Latin).
+3. Choose it in **Options → Language**.
+
+Japanese isn't supported: the game has no renderer for its letters (the log
+says when a `japanese.gxt` is found).
+
+If the saved language's file is gone, the game goes back to English. If a
+translation looks wrong, please send the log and its files.
 
 ## Troubleshooting
 
