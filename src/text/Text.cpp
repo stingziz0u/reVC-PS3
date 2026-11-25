@@ -31,6 +31,23 @@ GxtInTextDir(const char *name)	// CFileMgr's dir is TEXT
 	return true;
 }
 
+// A .gxt of another game (a Vice City russian.gxt copied to GTA III's TEXT
+// loads only its first table: every key the game asks for is "missing").
+// Vice City / LCS's start with TABL; the others aren't offered.
+static bool
+GxtOfThisGame(const char *name)	// CFileMgr's dir is TEXT
+{
+	char magic[4];
+	int f = CFileMgr::OpenFile(name, "rb");
+	if (f <= 0)
+		return false;
+	bool ok = CFileMgr::Read(f, magic, 4) == 4 && memcmp(magic, "TABL", 4) == 0;
+	CFileMgr::CloseFile(f);
+	if (!ok)
+		printf("CText: TEXT\\%s isn't Vice City / LCS's (another game's .gxt?): not used\n", name);
+	return ok;
+}
+
 static const char *
 GxtFileName(int32 lang)	// CFileMgr's dir is TEXT; nil if the file isn't there
 {
@@ -49,6 +66,9 @@ GxtFileName(int32 lang)	// CFileMgr's dir is TEXT; nil if the file isn't there
 #endif
 	default: name = "AMERICAN.GXT"; break;
 	}
+	// the added languages only: the others are the game's own files
+	if (lang > CMenuManager::LANGUAGE_SPANISH)
+		return GxtOfThisGame(name) ? name : nil;
 	return GxtInTextDir(name) ? name : nil;
 }
 
