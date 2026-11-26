@@ -11,7 +11,7 @@ from your own PC copy. It is the sibling of
 [re3-PS3](https://github.com/stingziz0u/re3-PS3) (GTA III) and shares its
 PS3 layer.
 
-> **Status: 1.7.2 alpha.** Every mission script of the game, the odd jobs, the
+> **Status: 1.7.3 alpha.** Every mission script of the game, the odd jobs, the
 > collectibles, a flight over the whole map, saving/loading, vehicles and
 > garages have been run through the automatic test on real hardware without
 > crashes, and the game has been played to 100% on a real PS3. Expect bugs
@@ -21,9 +21,9 @@ PS3 layer.
 >
 >
 > **Known issues:**
-> - **Polish and Russian** (new in 1.7.2) need the translation's `.gxt` and
->   its font: with a `russian.gxt` alone the text comes out in Latin letters.
->   Not tried with a complete translation yet; see [Languages](#languages).
+> - **Polish** (new in 1.7.2) hasn't been tried with a complete translation
+>   yet. Russian works with a complete one (its `.gxt`, font and
+>   `fonts.dat`), as reported; see [Languages](#languages).
 > - A freeze after crashing a bike at high speed has been reported. 1.2 and
 >   1.3 alpha have fixes for what could cause it (the audio no longer makes
 >   the game wait for the disk, the world's sector loops can't run away on
@@ -40,6 +40,13 @@ PS3 layer.
 **No game data is included.** You need a legally purchased copy of GTA Vice
 City for PC. The PKG only has the program, its icon and two reVC files (the
 PlayStation button icons and the controller picture of the settings page).
+
+## What's new in 1.7.3
+
+- Starting the game with **Russian** (or Polish) saved no longer crashes.
+- The translation's **letter widths** are read from `data/fonts_r.dat`
+  (Russian) or `data/fonts_p.dat` (Polish), so its letters don't overlap.
+  English and the other languages keep the game's own widths.
 
 ## What's new in 1.7.2
 
@@ -190,7 +197,7 @@ the original):
 
 ## Installation
 
-1. Install `revc-ps3-1.7.2-alpha.pkg` on a PS3 with homebrew support (CFW or
+1. Install `revc-ps3-1.7.3-alpha.pkg` on a PS3 with homebrew support (CFW or
    HEN), e.g. copy it by FTP and install it with the package manager. It
    appears in the XMB as **reVC**.
 2. The PKG creates `/dev_hdd0/game/REVCPS300/USRDIR` with these empty
